@@ -25,6 +25,22 @@ const qTouch = new URLSearchParams(location.search).get('touch');
 const TOUCH = qTouch != null ? qTouch !== '0' : matchMedia('(hover: none) and (pointer: coarse)').matches;
 if (TOUCH) document.body.classList.add('touch');
 
+// rozmiar widoku. iOS w trybie aplikacji (z ekranu początkowego) w poziomie zgłasza widok niższy
+// o pasek statusu i zostawia pusty pas na dole — wtedy bierzemy pełny ekran.
+let VW = innerWidth, VH = innerHeight;
+function measureView() {
+  VW = innerWidth; VH = innerHeight;
+  if (navigator.standalone && screen.width && screen.height) {
+    const land = innerWidth > innerHeight, a = Math.max(screen.width, screen.height), b = Math.min(screen.width, screen.height);
+    const sw = land ? a : b, sh = land ? b : a;
+    if (sw > VW && sw < VW * 1.3) VW = sw; // nie ruszaj przy podzielonym ekranie na iPadzie
+    if (sh > VH && sh < VH * 1.3) VH = sh;
+  }
+  document.documentElement.style.setProperty('--vw', `${VW}px`);
+  document.documentElement.style.setProperty('--vh', `${VH}px`);
+}
+measureView();
+
 addEventListener('error', (e) => { const el = document.getElementById('connStatus'); if (el) el.textContent = 'Error: ' + e.message; });
 
 const sndPickup = () => { FX.beep(660, 0.06, 'triangle', 0.15); FX.beep(990, 0.08, 'triangle', 0.15, 0.06); };
@@ -44,7 +60,7 @@ const scene = new THREE.Scene();
 const SKY = VIS.HORIZON.clone(), STORM_FOG = new THREE.Color(0x5a2a9a);
 scene.background = SKY.clone();
 scene.fog = new THREE.Fog(SKY.clone(), 160, 520);
-const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1500);
+const camera = new THREE.PerspectiveCamera(75, VW / VH, 0.1, 1500);
 camera.position.set(0, 80, 120);
 camera.lookAt(0, 0, 0);
 
@@ -69,19 +85,20 @@ let post = null;
 function applyQuality() {
   // ekran telefonu jest mały i gęsty: przy 1:1 obraz byłby rozmyty, więc trochę więcej pikseli
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, QUAL.pixelRatio * (TOUCH ? 1.5 : 1)));
-  renderer.setSize(innerWidth, innerHeight);
+  renderer.setSize(VW, VH);
   sun.shadow.mapSize.set(QUAL.shadow, QUAL.shadow);
   if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
   if (post) { post.dispose(); post = null; }
-  if (QUAL.post) post = VIS.createPost(renderer, scene, camera, QUAL);
+  if (QUAL.post) { post = VIS.createPost(renderer, scene, camera, QUAL); post.setSize(VW, VH); }
   if (env) env.setQuality(QUAL);
 }
 
 function onResize() {
-  renderer.setSize(innerWidth, innerHeight);
-  camera.aspect = innerWidth / innerHeight;
+  measureView();
+  renderer.setSize(VW, VH);
+  camera.aspect = VW / VH;
   camera.updateProjectionMatrix();
-  if (post) post.setSize(innerWidth, innerHeight);
+  if (post) post.setSize(VW, VH);
 }
 addEventListener('resize', onResize);
 addEventListener('orientationchange', () => setTimeout(onResize, 300)); // iOS podaje nowy rozmiar z opóźnieniem
@@ -299,7 +316,7 @@ function updateMarkers() {
     if (carrying().length) want.push({ key: 'reboot', x: gm.reboot.x, y: gm.reboot.y + 3.5, z: gm.reboot.z, icon: '♻', label: 'Reboot Van', color: '#4cf2ff' });
   }
   const keep = new Set();
-  const W = innerWidth, H = innerHeight, M = 46;
+  const W = VW, H = VH, M = 46;
   for (const w of want) {
     keep.add(w.key);
     let el = markerEls.get(w.key);
@@ -350,7 +367,7 @@ function updateDmgNums(dt) {
     if (_proj.z > 1) { d.el.style.display = 'none'; continue; }
     d.el.style.display = '';
     const age = 0.95 - d.life;
-    const x = (_proj.x * 0.5 + 0.5) * innerWidth + d.vx * age, y = (-_proj.y * 0.5 + 0.5) * innerHeight - age * 70 + age * age * 60;
+    const x = (_proj.x * 0.5 + 0.5) * VW + d.vx * age, y = (-_proj.y * 0.5 + 0.5) * VH - age * 70 + age * age * 60;
     const s = age < 0.1 ? 1.7 - age * 7 : 1;
     d.el.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%) scale(${s})`;
     d.el.style.opacity = Math.min(1, d.life / 0.3);
@@ -986,7 +1003,7 @@ if (TOUCH) {
   zone.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (!locked) return;
-    if (e.clientX < innerWidth * 0.42 && joy.id == null) { joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; moveJoy(e); }
+    if (e.clientX < VW * 0.42 && joy.id == null) { joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; moveJoy(e); }
     else looks.set(e.pointerId, { x: e.clientX, y: e.clientY });
   });
   addEventListener('pointermove', (e) => {
@@ -1776,7 +1793,7 @@ function updateHUD(dt) {
   // celownik pokazuje prawdziwy rozrzut
   const W = curWeapon();
   const spread = currentSpread(W);
-  const halfH = innerHeight / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const halfH = VH / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
   const gap = Math.round(clamp(Math.tan(spread) * halfH + RC.p * 120, 3, 160));
   setStyle('crosshair', '--g', `${gap}px`);
   const kind = !W ? 'dot' : W.melee ? 'dot' : W.pellets > 1 ? 'ring' : 'lines';

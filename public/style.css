@@ -424,3 +424,5 @@ body.touch #menu { padding: max(12px, var(--st)) max(12px, var(--sr)) max(12px, 
   #nick, #roomCode { padding: 10px; font-size: 18px; }
 }
 @media (max-width: 560px) { #teamTools .grp { flex-wrap: wrap; padding: 6px 8px 6px 12px; } }
+/* warstwy pełnoekranowe mają rozmiar z JS (--vw/--vh), bo iOS potrafi zgłosić za mały widok */
+canvas#game, #hud, #menu, #fullmap, #rotate, body.touch.playing #tzone, body.touch.playing #tctl { right: auto; bottom: auto; width: var(--vw, 100%); height: var(--vh, 100%); }
