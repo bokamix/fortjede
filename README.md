@@ -2,24 +2,30 @@
 
 > Interfejs gry jest po angielsku. Menu (Esc) ma zakładki: Teams, Match settings, Options (grafika, celowanie, czułość myszy, głośność) i Controls.
 
-Przeglądarkowy battle royale w stylu Fortnite (bez budowania), napisany w three.js. Nie ma tu bundlera ani kroku budowania: serwer Node podaje pliki wprost.
+Przeglądarkowy battle royale w stylu Fortnite (bez budowania), napisany w three.js. Nie ma tu bundlera ani kroku budowania, a do grania **nie jest potrzebny serwer gry**.
 
-## Start
+## Granie: https://bokamix.github.io/fortjede/
+
+1. Jedna osoba (host) wpisuje nick i klika **CREATE ROOM**. Mecz liczy się w jej przeglądarce.
+2. W lobby widać kod pokoju i link zaproszenia (**Copy link**). Host wysyła go znajomym.
+3. Znajomi otwierają link i klikają **JOIN ROOM** (albo wpisują kod ręcznie na stronie głównej).
+
+Host musi mieć otwartą kartę z grą, bo jej zamknięcie kończy pokój dla wszystkich. Przełączenie się na inną kartę nie zatrzymuje gry, bo symulacja działa w Web Workerze.
+
+### Jak to działa
+
+- Strona jest statyczna (GitHub Pages, publikowana automatycznie z `public/` przy każdym pushu do `main`).
+- Host uruchamia symulację meczu (`public/sim.js`) w Web Workerze (`public/host-worker.js`).
+- Goście łączą się z przeglądarką hosta przez **WebRTC** (biblioteka PeerJS, `public/net.js`). Darmowy serwer PeerJS służy tylko do zestawienia połączenia, a cały ruch gry idzie bezpośrednio peer-to-peer. Gdy bezpośrednie połączenie nie wyjdzie (restrykcyjny NAT, np. niektóre sieci komórkowe), PeerJS przechodzi na swoje serwery TURN.
+- Wysyłanie danych obciąża łącze hosta: przy kilku graczach i wielu botach to rząd 0,5–1,5 MB/s.
+
+## Uruchomienie lokalne (do testów)
 
 ```bash
-npm install      # tylko raz (three + ws)
-npm start        # serwer na http://localhost:3000
+npm start        # statyczny serwer na http://localhost:3000
 ```
 
-Inny port: `PORT=8080 npm start`
-
-## Granie z kolegami przez ngrok
-
-```bash
-ngrok http 3000
-```
-
-Wyślij kolegom adres `https://….ngrok-free.app`. Na darmowym ngroku przy pierwszym wejściu pojawi się ostrzeżenie, wystarczy kliknąć **Visit Site**. WebSocket idzie tym samym adresem, więc nie trzeba nic więcej konfigurować.
+Inny port: `PORT=8080 npm start`. Można otworzyć dwie karty: w jednej utworzyć pokój, w drugiej do niego dołączyć.
 
 ## Jak wygląda rozgrywka
 
@@ -31,7 +37,7 @@ Wyślij kolegom adres `https://….ngrok-free.app`. Na darmowym ngroku przy pier
 
 ## Host i ustawienia meczu
 
-- **Host** to osoba grająca na komputerze, na którym działa serwer (rozpoznawana po połączeniu lokalnym, a nie przez ngrok). Gdy nikt nie gra lokalnie, hostem zostaje pierwszy gracz. Host może przekazać hosta komuś innemu przyciskiem 👑 przy nicku.
+- **Host** to osoba, która utworzyła pokój. Może przekazać rolę hosta (ustawianie drużyn i meczu) komuś innemu przyciskiem 👑 przy nicku, ale symulacja dalej działa w przeglądarce twórcy pokoju.
 - Tylko host ustawia drużyny, zmienia ustawienia i startuje mecz. Pozostali widzą wszystko, ale nie mogą tego zmienić.
 - Ustawienia w lobby (Esc):
 
@@ -83,7 +89,7 @@ Wyślij kolegom adres `https://….ngrok-free.app`. Na darmowym ngroku przy pier
 - **Niszczenie otoczenia**: kilofem (pusty slot) rozwalasz ściany, dachy, skrzynki, kontenery, drzewa i skały, a kule też je kruszą, tylko wolniej. Zniszczenia widzą wszyscy i odnawiają się przy każdym meczu.
 - Skrzynie (złote, otwierane przez E), loot leżący na ziemi, a pokonani gracze i boty zostawiają swoje przedmioty.
 - Trafienia w głowę, liczby obrażeń, killfeed, obserwowanie po śmierci.
-- Losowa wyspa przy każdym uruchomieniu serwera: 5 nazwanych miasteczek, domy z drzwiami i oknami, kontenery, drzewa, skały, wzgórze.
+- Losowa wyspa w każdym nowym pokoju: 5 nazwanych miasteczek, domy z drzwiami i oknami, kontenery, drzewa, skały, wzgórze.
 
 ## Grafika
 
@@ -91,12 +97,15 @@ W menu (Esc) jest przełącznik **Grafika: Niska / Średnia / Wysoka**, a wybór
 
 ## Pliki
 
-- `server.js`: serwer HTTP + WebSocket, mecz, burza, loot i boty
-- `public/shared.js`: kod wspólny dla serwera i przeglądarki (mapa, kolizje, raycast, bronie)
-- `public/game.js`: klient (sterowanie, sieć, HUD, kamera)
+- `server.js`: lokalny serwer plików statycznych do testów
+- `public/sim.js`: autorytatywna symulacja meczu (burza, loot, boty, drużyny), działa u hosta
+- `public/host-worker.js`: Web Worker hosta, który uruchamia `sim.js`
+- `public/net.js`: sieć P2P (WebRTC/PeerJS): tworzenie pokoju i dołączanie
+- `public/shared.js`: kod wspólny dla symulacji i klienta (mapa, kolizje, raycast, bronie)
+- `public/game.js`: klient (sterowanie, HUD, kamera)
 - `public/visuals.js`: oprawa graficzna (niebo, woda, teren, faktury, roślinność, postprocessing)
 - `public/avatar.js`: postacie i ich animacje
 - `public/gunfx.js`: modele broni, ikony, dźwięki i efekty strzałów
 - `public/index.html`, `public/style.css`: UI
 
-Gra ufa klientom (pozycje i trafienia liczy przeglądarka), więc nadaje się do grania ze znajomymi, a nie z obcymi.
+Gra ufa klientom (pozycje i trafienia liczy przeglądarka), a host ma pełną kontrolę nad symulacją, więc nadaje się do grania ze znajomymi, a nie z obcymi.

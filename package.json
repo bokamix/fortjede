@@ -3,12 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Przeglądarkowy battle royale w three.js (bez budowania)",
+  "description": "Przeglądarkowy battle royale w three.js (bez budowania), multiplayer P2P z hostem w przeglądarce",
   "scripts": {
     "start": "node server.js"
-  },
-  "dependencies": {
-    "three": "0.160.0",
-    "ws": "8.18.0"
   }
 }

@@ -4,6 +4,7 @@ import * as S from './shared.js';
 import * as FX from './gunfx.js';
 import * as VIS from './visuals.js';
 import { createAvatar, animateAvatar, muzzleOf, makeNameSprite } from './avatar.js';
+import { hostRoom, joinRoom, cleanCode, inviteLink } from './net.js';
 
 const { WEAPONS, CONSUMABLES, RARITIES, PICKAXE, MODE_CODE, MODES } = S;
 const $ = (id) => document.getElementById(id);
@@ -416,23 +417,63 @@ function placeMe(p) {
 }
 
 // ================================================================ sieć
-let ws = null;
-const net = { send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); } };
+// host: symulacja w Web Workerze u siebie; gość: połączenie WebRTC z przeglądarką hosta (net.js)
+let link = null; // { send(string) }
+const net = { send(o) { if (link) link.send(JSON.stringify(o)); } };
+const recv = (data) => { try { onMsg(JSON.parse(data)); } catch (err) { console.error(err); } };
+let peersOnline = 0;
 
-function connect(name) {
-  $('connStatus').textContent = 'Connecting…';
-  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
-  ws.onopen = () => ws.send(JSON.stringify({ t: 'join', name }));
-  ws.onmessage = (e) => { try { onMsg(JSON.parse(e.data)); } catch (err) { console.error(err); } };
-  ws.onclose = () => {
-    if (document.pointerLockElement) document.exitPointerLock();
-    $('menu').classList.remove('hidden');
-    $('joinBox').classList.remove('hidden');
-    $('lobbyBox').classList.add('hidden');
-    $('playBtn').classList.add('hidden');
-    $('connStatus').textContent = 'Disconnected from the server — refresh the page (F5).';
-  };
+function connFailed(text) {
+  $('connStatus').textContent = text;
+  $('playBtn').disabled = false; $('joinBtn').disabled = false;
 }
+
+function connect(name, code) {
+  if (code) {
+    $('connStatus').textContent = `Joining room ${code}…`;
+    const l = joinRoom(code, {
+      onOpen() { link = l; G.room = code; l.send(JSON.stringify({ t: 'join', name })); },
+      onMsg: recv,
+      onError: connFailed,
+      onClose() {
+        link = null;
+        if (document.pointerLockElement) document.exitPointerLock();
+        $('menu').classList.remove('hidden');
+        $('joinBox').classList.remove('hidden');
+        $('lobbyBox').classList.add('hidden');
+        $('joinCard').classList.add('hidden');
+        $('connStatus').textContent = 'The host has left — the room is closed. Refresh the page (F5) to play again.';
+      },
+    });
+  } else {
+    $('connStatus').textContent = 'Creating a room…';
+    hostRoom({
+      onReady({ code, send }) {
+        link = { send }; G.room = code; G.roomOwner = true;
+        send(JSON.stringify({ t: 'join', name }));
+        // zamknięcie karty hosta kończy grę wszystkim — zapytaj, jeśli ktoś jest w pokoju
+        addEventListener('beforeunload', (e) => { if (peersOnline > 0) { e.preventDefault(); e.returnValue = ''; } });
+      },
+      onMsg: recv,
+      onError: connFailed,
+      onPeers(n) { peersOnline = n; },
+    });
+  }
+}
+
+function renderRoomInfo() {
+  if (!G.room) return;
+  $('roomInfo').classList.remove('hidden');
+  $('roomCodeOut').textContent = G.room;
+  $('roomLink').value = inviteLink(G.room);
+}
+$('copyLinkBtn').onclick = () => {
+  const done = () => { $('copyLinkBtn').textContent = 'Copied!'; setTimeout(() => { $('copyLinkBtn').textContent = 'Copy link'; }, 1500); };
+  const t = $('roomLink');
+  if (navigator.clipboard) navigator.clipboard.writeText(t.value).then(done, () => { t.select(); });
+  else { t.select(); document.execCommand('copy'); done(); }
+};
+$('roomLink').onfocus = (e) => e.target.select();
 
 function onMsg(m) {
   switch (m.t) {
@@ -456,6 +497,8 @@ function onMsg(m) {
       $('joinBox').classList.add('hidden');
       $('lobbyBox').classList.remove('hidden');
       $('hud').classList.remove('hidden');
+      renderRoomInfo();
+      $('connStatus').textContent = '';
       break;
     }
     case 'roster': {
@@ -1329,6 +1372,7 @@ function renderPlayersList() {
   const humansN = all.filter((p) => !p.bot).length, botsN = all.length - humansN;
   $('lobbyStatus').innerHTML = `<span class="pill">🙂 <b>${humansN}</b> player${humansN === 1 ? '' : 's'}</span><span class="pill">🤖 <b>${botsN}</b> bots</span><span class="pill">👑 ${esc(nameOf(G.hostId))}</span>`;
   $('hostInfo').innerHTML = host ? 'You are the <b>host</b>. You set up the teams and the match.' : `<b>${esc(nameOf(G.hostId))}</b> is the host and sets up the teams and the match.`;
+  if (G.roomOwner) $('hostInfo').innerHTML += ' The match runs in <b>your browser</b> — keep this tab open, closing it ends the game for everyone.';
   $('teamHint').textContent = edit ? 'Drag a player onto a team, or click a player and then a team. Click a team name to rename it.' : 'Only the host can arrange teams.';
   $('teamTools').innerHTML = !edit ? '' : `
     <button class="btn ghost" data-act="solo">Everyone solo</button>
@@ -1816,15 +1860,29 @@ requestAnimationFrame(frame);
 
 // ================================================================ menu
 try { $('nick').value = localStorage.getItem('fortjede-nick') || ''; } catch { /* brak storage */ }
-function join() {
+const qs = new URLSearchParams(location.search);
+const invited = cleanCode(qs.get('room'));
+function join(asGuest) {
   FX.ac();
   const name = $('nick').value.trim() || `Player${Math.floor(Math.random() * 1000)}`;
+  const code = asGuest ? cleanCode($('roomCode').value) : '';
+  if (asGuest && code.length < 4) { $('connStatus').textContent = 'Enter the room code you got from the host.'; $('roomCode').focus(); return; }
   try { localStorage.setItem('fortjede-nick', name); } catch { /* brak storage */ }
-  $('playBtn').disabled = true;
-  connect(name);
+  $('playBtn').disabled = true; $('joinBtn').disabled = true;
+  connect(name, code);
 }
-$('playBtn').onclick = join;
-$('nick').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+$('playBtn').onclick = () => join(false);
+$('joinBtn').onclick = () => join(true);
+$('nick').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(!!invited); });
+$('roomCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(true); });
+$('roomCode').addEventListener('input', (e) => { e.target.value = cleanCode(e.target.value); });
+if (invited) {
+  // wejście z linku zaproszenia: główną akcją jest dołączenie
+  $('roomCode').value = invited;
+  $('joinCard').classList.add('invited');
+  $('joinBtn').textContent = `JOIN ROOM ${invited}`;
+  $('playBtn').textContent = 'Create my own room instead';
+}
 $('resumeBtn').onclick = lock;
 $('startBtn').onclick = () => { net.send({ t: 'start' }); lock(); };
 $('nick').focus();
@@ -1845,7 +1903,7 @@ const VOL0 = +load('fortjede-vol', 0.8);
 $('vol').value = VOL0; FX.setVolume(VOL0); $('volVal').textContent = `${Math.round(VOL0 * 100)}%`;
 $('vol').addEventListener('input', (e) => { const v = +e.target.value; FX.setVolume(v); $('volVal').textContent = `${Math.round(v * 100)}%`; store('fortjede-vol', v); });
 applyQuality();
-const qsNick = new URLSearchParams(location.search).get('nick');
-if (qsNick) { $('nick').value = qsNick.slice(0, 16); join(); }
+const qsNick = qs.get('nick');
+if (qsNick) { $('nick').value = qsNick.slice(0, 16); join(!!invited); }
 
 window.__fj = { G, me, camera, keys, jumpFromBus, addItem, interact, selectSlot, onCrouchKey, setLocked: (v) => { locked = v; }, get gm() { return gm; } }; // debug

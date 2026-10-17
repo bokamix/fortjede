@@ -25,11 +25,26 @@ button:disabled { opacity: .45; cursor: default; filter: none; transform: none; 
 .btn.big { width: 100%; font-size: 30px; padding: 16px; }
 .btn.ghost { background: var(--ui-card); border: 1px solid var(--ui-line); }
 
-#joinBox { display: flex; justify-content: center; padding: 18px 0 8px; }
+#joinBox { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 0 8px; }
 .joinCard { width: min(420px, 100%); display: flex; flex-direction: column; gap: 10px; }
 .fieldLabel { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ui-dim); }
 #nick { width: 100%; text-align: center; font-size: 20px; font-weight: 700; padding: 14px; }
-#connStatus { min-height: 18px; font-size: 13px; color: #ffb3b3; text-align: center; }
+#connStatus { width: min(420px, 100%); min-height: 18px; font-size: 13px; color: #ffb3b3; text-align: center; }
+.orSep { display: flex; align-items: center; gap: 10px; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--ui-dim); }
+.orSep::before, .orSep::after { content: ''; flex: 1; height: 1px; background: var(--ui-line); }
+.codeRow { display: flex; gap: 8px; }
+#roomCode { flex: 1; min-width: 0; text-align: center; font-size: 20px; font-weight: 800; letter-spacing: 4px; text-transform: uppercase; }
+#roomCode::placeholder { letter-spacing: 1px; font-weight: 600; text-transform: none; }
+.codeRow .btn.go { font-size: 20px; padding: 10px 18px; }
+/* wejście z linku zaproszenia: dołączenie na górze, tworzenie pokoju jako mniejsza opcja */
+.joinCard.invited .codeRow { order: 1; flex-direction: column; }
+.joinCard.invited .codeRow .btn.go { font-size: 26px; padding: 14px; }
+.joinCard.invited .orSep { display: none; }
+.joinCard.invited #playBtn { order: 2; font-family: 'Rubik', sans-serif; font-size: 13px; font-weight: 700; padding: 10px; color: var(--ui-dim); background: var(--ui-card); border: 1px solid var(--ui-line); box-shadow: none; letter-spacing: .3px; }
+.roomInfo { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 8px 10px; border-radius: 12px; background: var(--ui-card); border: 1px solid var(--ui-line); }
+.roomCodeBox { display: flex; flex-direction: column; line-height: 1.1; }
+.roomCodeBox b { font-size: 20px; letter-spacing: 3px; color: var(--ui-yellow); }
+#roomLink { flex: 1; min-width: 0; font-size: 13px; padding: 8px 10px; background: rgba(0,0,0,.25); color: var(--ui-text); }
 
 #lobbyBox { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .actions { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; }

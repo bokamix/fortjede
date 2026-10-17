@@ -7,7 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <script type="importmap">{ "imports": { "three": "/vendor/three.module.js", "three/addons/": "/vendor/addons/" } }</script>
+  <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }</script>
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
   <div id="hud" class="hidden">
@@ -63,18 +64,28 @@
       </header>
 
       <div id="joinBox">
-        <div class="joinCard">
+        <div class="joinCard" id="joinCard">
           <label class="fieldLabel" for="nick">Your name</label>
           <input id="nick" maxlength="16" placeholder="Enter a nickname" autocomplete="off">
-          <button id="playBtn" class="btn primary big">PLAY</button>
-          <div id="connStatus"></div>
+          <button id="playBtn" class="btn primary big">CREATE ROOM</button>
+          <div class="orSep" id="orSep">or join a friend's room</div>
+          <div class="codeRow" id="codeRow">
+            <input id="roomCode" maxlength="8" placeholder="Room code" autocomplete="off" spellcheck="false">
+            <button id="joinBtn" class="btn go">JOIN</button>
+          </div>
         </div>
+        <div id="connStatus"></div>
       </div>
 
       <div id="lobbyBox" class="hidden">
         <div class="actions">
           <button id="resumeBtn" class="btn primary">▶ CLICK TO PLAY</button>
           <button id="startBtn" class="btn go">START MATCH</button>
+        </div>
+        <div id="roomInfo" class="roomInfo hidden">
+          <div class="roomCodeBox"><span class="fieldLabel">Room</span><b id="roomCodeOut"></b></div>
+          <input id="roomLink" readonly>
+          <button id="copyLinkBtn" class="btn accent">Copy link</button>
         </div>
         <div id="hostInfo" class="note"></div>
         <nav class="tabs" id="tabs">
