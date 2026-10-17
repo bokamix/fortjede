@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="pl">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Fortjede</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">{ "imports": { "three": "/vendor/three.module.js", "three/addons/": "/vendor/addons/" } }</script>
 </head>
@@ -39,7 +39,7 @@
     </div>
 
     <div id="equipName"></div>
-    <div id="ammoHint">R — PRZEŁADUJ</div>
+    <div id="ammoHint">R — RELOAD</div>
     <div id="weaponPanel">
       <img id="wIcon" alt="">
       <div class="wtext">
@@ -57,43 +57,72 @@
 
   <div id="menu">
     <div class="panel">
-      <h1>FORTJEDE</h1>
-      <div class="tag">battle royale • bez budowania</div>
+      <header class="mHead">
+        <div class="logo">FORTJEDE<small>Battle Royale · No Building</small></div>
+        <div id="lobbyStatus"></div>
+      </header>
+
       <div id="joinBox">
-        <input id="nick" maxlength="16" placeholder="Twój nick" autocomplete="off">
-        <button id="playBtn">GRAJ</button>
-        <div id="connStatus"></div>
-      </div>
-      <div id="lobbyBox" class="hidden">
-        <div class="lobbyTop">
-          <button id="resumeBtn">KLIKNIJ ABY GRAĆ</button>
-          <button id="startBtn">START MECZU</button>
+        <div class="joinCard">
+          <label class="fieldLabel" for="nick">Your name</label>
+          <input id="nick" maxlength="16" placeholder="Enter a nickname" autocomplete="off">
+          <button id="playBtn" class="btn primary big">PLAY</button>
+          <div id="connStatus"></div>
         </div>
-        <div id="hostInfo"></div>
-        <div class="lobbyCols">
-          <section class="lobbyCol">
-            <div class="colHead">Drużyny <span class="hint" id="teamHint"></span></div>
+      </div>
+
+      <div id="lobbyBox" class="hidden">
+        <div class="actions">
+          <button id="resumeBtn" class="btn primary">▶ CLICK TO PLAY</button>
+          <button id="startBtn" class="btn go">START MATCH</button>
+        </div>
+        <div id="hostInfo" class="note"></div>
+        <nav class="tabs" id="tabs">
+          <button data-tab="teams" class="on">Teams</button>
+          <button data-tab="match">Match settings</button>
+          <button data-tab="prefs">Options</button>
+          <button data-tab="controls">Controls</button>
+        </nav>
+        <div class="panes">
+          <section class="pane on" data-pane="teams">
+            <div class="paneHint" id="teamHint"></div>
             <div id="teamTools"></div>
             <div id="teamBoard"></div>
           </section>
-          <section class="lobbyCol">
-            <div class="colHead">Ustawienia meczu</div>
+          <section class="pane" data-pane="match">
             <div id="settingsBox"></div>
           </section>
+          <section class="pane" data-pane="prefs">
+            <div class="prefs">
+              <div class="pref"><div class="prefLabel">Graphics quality<small>Use Low on slower laptops</small></div>
+                <div class="seg" id="qualitySeg"><button data-v="low">Low</button><button data-v="medium">Medium</button><button data-v="high">High</button></div></div>
+              <div class="pref"><div class="prefLabel">Aim (right mouse)<small>Click toggles aim, or hold to aim</small></div>
+                <div class="seg" id="adsSeg"><button data-v="toggle">Click to toggle</button><button data-v="hold">Hold</button></div></div>
+              <div class="pref"><div class="prefLabel">Mouse sensitivity<small id="sensVal"></small></div>
+                <input type="range" id="sens" min="0.3" max="3" step="0.05"></div>
+              <div class="pref"><div class="prefLabel">Volume<small id="volVal"></small></div>
+                <input type="range" id="vol" min="0" max="1" step="0.05"></div>
+            </div>
+          </section>
+          <section class="pane" data-pane="controls">
+            <div class="keys">
+              <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Move</span></div>
+              <div><kbd>Shift</kbd><span>Sprint</span></div>
+              <div><kbd>Space</kbd><span>Jump · leave the bus · open glider</span></div>
+              <div><kbd>W</kbd>+<kbd>Space</kbd><span>Climb a ledge / vault</span></div>
+              <div><kbd>C</kbd><span>Crouch (while sprinting: slide)</span></div>
+              <div><kbd>LMB</kbd><span>Shoot / use item</span></div>
+              <div><kbd>RMB</kbd><span>Aim (sniper: scope)</span></div>
+              <div><kbd>R</kbd><span>Reload</span></div>
+              <div><kbd>1</kbd>–<kbd>5</kbd><span>Inventory slots (or mouse wheel)</span></div>
+              <div><kbd>E</kbd><span>Pick up · open chest · hold to reboot</span></div>
+              <div><kbd>Q</kbd><span>Drop item</span></div>
+              <div><kbd>M</kbd><span>Map</span></div>
+              <div><kbd>Tab</kbd><span>Teams scoreboard</span></div>
+              <div><kbd>Esc</kbd><span>Menu</span></div>
+            </div>
+          </section>
         </div>
-      </div>
-      <div id="qualityBox">
-        <label>Grafika <select id="quality"><option value="low">Niska (słabszy laptop)</option><option value="medium">Średnia</option><option value="high">Wysoka</option></select></label>
-        <label>Celowanie (PPM) <select id="adsMode"><option value="toggle">Kliknięcie włącza/wyłącza</option><option value="hold">Przytrzymanie</option></select></label>
-      </div>
-      <div class="help">
-        <div><kbd>WSAD</kbd> ruch</div><div><kbd>Shift</kbd> sprint</div>
-        <div><kbd>Spacja</kbd> skok / wyskok z autobusu / lotnia</div>
-        <div><kbd>LPM</kbd> strzał / użyj</div><div><kbd>PPM</kbd> celowanie</div>
-        <div><kbd>1-5</kbd> / kółko — sloty</div><div><kbd>R</kbd> przeładowanie</div>
-        <div><kbd>E</kbd> podnieś / otwórz skrzynię</div><div><kbd>Q</kbd> wyrzuć przedmiot</div>
-        <div><kbd>C</kbd> kucanie (w biegu: ślizg)</div><div><kbd>W</kbd>+<kbd>Spacja</kbd> przy krawędzi — wspinaczka</div>
-        <div><kbd>M</kbd> mapa</div><div><kbd>Tab</kbd> tabela drużyn</div><div><kbd>Esc</kbd> menu</div>
       </div>
     </div>
   </div>

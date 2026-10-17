@@ -43,7 +43,7 @@ const server = http.createServer((req, res) => {
 const SEED = (Math.random() * 1e9) | 0;
 const map = new GameMap(SEED);
 const MAP_JSON = map.toJSON();
-console.log(`Mapa: seed ${SEED}, ${map.towns.length} miasta, ${map.pads.length} domów, ${map.chests.length} skrzyń`);
+console.log(`Map: seed ${SEED}, ${map.towns.length} towns, ${map.pads.length} houses, ${map.chests.length} chests`);
 
 const ents = new Map(); // id -> gracz lub bot
 let nextId = 1;
@@ -62,13 +62,13 @@ const game = {
 const SET = () => game.settings;
 const BOT_LEVEL = { easy: { acc: 0.6, dmg: 0.7, react: 1.6 }, normal: { acc: 1, dmg: 1, react: 1 }, hard: { acc: 1.3, dmg: 1.25, react: 0.6 } };
 
-const BOT_NAMES = ['Bocik Zenek', 'Bot Grażyna', 'Mirek_AI', 'Kapitan Kampa', 'NoScope Norbert', 'Jarek Jumper', 'Tytus Tarcza',
-  'Bambik', 'Default Dawid', 'Pan Kilof', 'Wiesia Snajper', 'Bot Bogdan', 'Lama Lucek', 'Zbyszek Zip', 'Halinka 360',
-  'Krzysiek Krzak', 'Turbo Teresa', 'Sweaty Stefan', 'Bot Bożydar', 'Mietek Medkit', 'Gienek Glider', 'Ula Ultra',
-  'Ryszard Rush', 'Fanka Frytek', 'Edek Eliminator', 'Pani Pompa', 'Kazik Kampa', 'Lotnia Lucyna', 'Bot Bartek', 'Szymek Szybki',
-  // + kilkaset kombinacji, żeby starczyło na 99 botów bez powtórek
-  ...['Szybki', 'Cichy', 'Wściekły', 'Leniwy', 'Sprytny', 'Kampiący', 'Turbo', 'Mega', 'Złoty', 'Dziki', 'Śpiący', 'Głodny', 'Pancerny', 'Skaczący', 'Szalony', 'Tajny']
-    .flatMap((a) => ['Zenek', 'Mirek', 'Gienek', 'Kazik', 'Rysiek', 'Edek', 'Bogdan', 'Stefan', 'Jarek', 'Heniek', 'Waldek', 'Janusz', 'Franek', 'Józek', 'Krysia', 'Bożena'].map((f) => `${a} ${f}`))];
+const BOT_NAMES = ['Botty Zed', 'Bot Brenda', 'Mike_AI', 'Captain Camper', 'NoScope Norbert', 'Jumpy Jack', 'Shield Steve',
+  'Bambi', 'Default Dave', 'Mr Pickaxe', 'Sniper Sue', 'Bot Bob', 'Llama Larry', 'Zippy Zack', 'Halo 360',
+  'Bushy Ben', 'Turbo Tess', 'Sweaty Steve', 'Bot Boris', 'Medkit Mike', 'Glider Gene', 'Ultra Ula',
+  'Rush Ryan', 'Fries Fan', 'Eddie Eliminator', 'Pump Pam', 'Camper Kaz', 'Lucy Glide', 'Bot Bart', 'Speedy Sam',
+  // + a few hundred combinations, enough for 99 bots without repeats
+  ...['Fast', 'Silent', 'Angry', 'Lazy', 'Sneaky', 'Camping', 'Turbo', 'Mega', 'Golden', 'Wild', 'Sleepy', 'Hungry', 'Armored', 'Jumpy', 'Crazy', 'Secret']
+    .flatMap((a) => ['Zed', 'Mike', 'Gene', 'Kaz', 'Rick', 'Eddie', 'Bob', 'Steve', 'Jack', 'Hank', 'Walt', 'Joe', 'Frank', 'Joey', 'Kris', 'Bella'].map((f) => `${a} ${f}`))];
 
 const r2 = (v) => Math.round(v * 100) / 100;
 const now = () => Date.now();
@@ -552,7 +552,7 @@ wss.on('connection', (ws, req) => {
     if (!m || typeof m.t !== 'string') return;
     if (!me) {
       if (m.t !== 'join') return;
-      const name = String(m.name || '').replace(/[<>&"']/g, '').trim().slice(0, 16) || `Gracz${nextId}`;
+      const name = String(m.name || '').replace(/[<>&"']/g, '').trim().slice(0, 16) || `Player${nextId}`;
       me = newEnt({ ws, name, local });
       ents.set(me.id, me);
       const cur = ents.get(game.hostId);
@@ -568,7 +568,7 @@ wss.on('connection', (ws, req) => {
         destroyed: [...game.destroyed], objHp: [...game.objHp], cards: cardsMsg(),
       });
       broadcast(rosterMsg());
-      console.log(`+ ${me.name} (${humans().length} graczy)`);
+      console.log(`+ ${me.name} (${humans().length} players)`);
       return;
     }
     handle(me, m);
@@ -576,7 +576,7 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     if (!me) return;
     ents.delete(me.id);
-    console.log(`- ${me.name} (${humans().length} graczy)`);
+    console.log(`- ${me.name} (${humans().length} players)`);
     if (game.hostId === me.id) pickHost();
     broadcast(rosterMsg());
     if (game.state === 'match' && me.inMatch && me.alive) {
@@ -846,8 +846,8 @@ setInterval(() => {
 
 server.listen(PORT, () => {
   const ips = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address);
-  console.log(`\n  FORTJEDE działa!`);
-  console.log(`  Lokalnie:  http://localhost:${PORT}`);
-  for (const ip of ips) console.log(`  W sieci:   http://${ip}:${PORT}`);
-  console.log(`  Dla kolegów przez internet:  ngrok http ${PORT}\n`);
+  console.log(`\n  FORTJEDE is running!`);
+  console.log(`  Local:     http://localhost:${PORT}`);
+  for (const ip of ips) console.log(`  Network:   http://${ip}:${PORT}`);
+  console.log(`  For friends over the internet:  ngrok http ${PORT}\n`);
 });

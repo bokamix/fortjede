@@ -19,7 +19,7 @@ const lerpAngle = (a, b, t) => {
 const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-addEventListener('error', (e) => { const el = document.getElementById('connStatus'); if (el) el.textContent = 'Błąd: ' + e.message; });
+addEventListener('error', (e) => { const el = document.getElementById('connStatus'); if (el) el.textContent = 'Error: ' + e.message; });
 
 const sndPickup = () => { FX.beep(660, 0.06, 'triangle', 0.15); FX.beep(990, 0.08, 'triangle', 0.15, 0.06); };
 const sndChest = () => [523, 659, 784, 1046].forEach((f, i) => FX.beep(f, 0.15, 'triangle', 0.12, i * 0.07));
@@ -149,7 +149,7 @@ function buildWorld() {
   const lx = lc.getContext('2d');
   lx.fillStyle = 'rgba(0,30,60,0.75)'; lx.fillRect(16, 12, 480, 72);
   lx.fillStyle = '#4cf2ff'; lx.font = '800 42px Rubik, sans-serif'; lx.textAlign = 'center'; lx.textBaseline = 'middle';
-  lx.fillText('♻ PUNKT ODRODZENIA', 256, 50);
+  lx.fillText('♻ REBOOT VAN', 256, 50);
   const ltex = new THREE.CanvasTexture(lc); ltex.colorSpace = THREE.SRGBColorSpace;
   const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: ltex, transparent: true, depthWrite: false }));
   label.scale.set(5, 0.94, 1); label.position.set(0, 4.3, 0);
@@ -286,7 +286,7 @@ function updateMarkers() {
       if (c.carrier || c.owner === G.myId || !cardMeshes.has(c.owner)) continue;
       want.push({ key: 'c' + c.owner, x: c.x, y: c.y + 1.2, z: c.z, icon: '🃏', label: nameOf(c.owner), color: tColor(c.team) });
     }
-    if (carrying().length) want.push({ key: 'reboot', x: gm.reboot.x, y: gm.reboot.y + 3.5, z: gm.reboot.z, icon: '♻', label: 'Punkt Odrodzenia', color: '#4cf2ff' });
+    if (carrying().length) want.push({ key: 'reboot', x: gm.reboot.x, y: gm.reboot.y + 3.5, z: gm.reboot.z, icon: '♻', label: 'Reboot Van', color: '#4cf2ff' });
   }
   const keep = new Set();
   const W = innerWidth, H = innerHeight, M = 46;
@@ -420,7 +420,7 @@ let ws = null;
 const net = { send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); } };
 
 function connect(name) {
-  $('connStatus').textContent = 'Łączenie…';
+  $('connStatus').textContent = 'Connecting…';
   ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
   ws.onopen = () => ws.send(JSON.stringify({ t: 'join', name }));
   ws.onmessage = (e) => { try { onMsg(JSON.parse(e.data)); } catch (err) { console.error(err); } };
@@ -430,7 +430,7 @@ function connect(name) {
     $('joinBox').classList.remove('hidden');
     $('lobbyBox').classList.add('hidden');
     $('playBtn').classList.add('hidden');
-    $('connStatus').textContent = 'Rozłączono z serwerem — odśwież stronę (F5).';
+    $('connStatus').textContent = 'Disconnected from the server — refresh the page (F5).';
   };
 }
 
@@ -585,7 +585,7 @@ function onMsg(m) {
     }
     case 'cardlost': {
       if (G.deadInfo) G.deadInfo.canReboot = false;
-      G.killMsg = 'Twoja karta przepadła'; G.killMsgT = 3;
+      G.killMsg = 'Your reboot card expired'; G.killMsgT = 3;
       break;
     }
     case 'cards': setCards(m); break;
@@ -594,12 +594,12 @@ function onMsg(m) {
       G.dead = false; G.spectating = false; G.deadInfo = null; G.specId = null;
       placeMe(m.p);
       me.mode = 'sky';
-      G.killMsg = `Odrodził cię ${m.by}!`; G.killMsgT = 3;
+      G.killMsg = `${m.by} rebooted you!`; G.killMsgT = 3;
       [523, 784, 1046].forEach((f, i) => FX.beep(f, 0.18, 'triangle', 0.15, i * 0.1));
       break;
     }
     case 'rebootmsg': {
-      addKillfeed({ custom: `♻ ${m.by} odrodził: ${m.names.join(', ')}` });
+      addKillfeed({ custom: `♻ ${m.by} rebooted ${m.names.join(', ')}` });
       if (m.by === nameOf(G.myId)) { cancelReboot(); FX.beep(880, 0.2, 'triangle', 0.15); FX.beep(1320, 0.25, 'triangle', 0.15, 0.12); }
       break;
     }
@@ -635,9 +635,9 @@ function addKillfeed(m) {
     return;
   }
   const icon = WEAPONS[m.w] || m.w === 'pickaxe' ? `<img src="${FX.itemIcon(m.w, 0)}">` : '';
-  if (m.w === 'quit') html = `${esc(m.v)} opuścił mecz`;
-  else if (!m.k) html = m.w === 'storm' ? `🌀 ${esc(m.v)} zginął w burzy` : `${esc(m.v)} został wyeliminowany`;
-  else html = `${esc(m.k)} ${icon || '➜'} ${esc(m.v)}${m.head ? ' <span class="hs">✸ GŁOWA</span>' : ''}`;
+  if (m.w === 'quit') html = `${esc(m.v)} left the match`;
+  else if (!m.k) html = m.w === 'storm' ? `🌀 ${esc(m.v)} was lost in the storm` : `${esc(m.v)} was eliminated`;
+  else html = `${esc(m.k)} ${icon || '➜'} ${esc(m.v)}${m.head ? ' <span class="hs">✸ HEADSHOT</span>' : ''}`;
   const el = document.createElement('div');
   el.innerHTML = html;
   if (m.kid === G.myId || m.vid === G.myId) el.className = 'me';
@@ -645,7 +645,7 @@ function addKillfeed(m) {
   kf.prepend(el);
   while (kf.children.length > 6) kf.lastChild.remove();
   setTimeout(() => el.remove(), 7000);
-  if (m.kid === G.myId && m.vid !== G.myId) { G.killMsg = `ELIMINACJA: ${m.v}`; G.killMsgT = 2.5; }
+  if (m.kid === G.myId && m.vid !== G.myId) { G.killMsg = `ELIMINATED ${m.v}`; G.killMsgT = 2.5; }
 }
 
 function toast(it) {
@@ -658,7 +658,7 @@ function toast(it) {
 }
 
 // ================================================================ ekwipunek
-let ADS_MODE = 'toggle';
+let ADS_MODE = 'toggle', SENS = 1;
 try { ADS_MODE = localStorage.getItem('fortjede-ads') || 'toggle'; } catch { /* brak storage */ }
 function resetWeaponState() {
   if (ADS_MODE === 'toggle') G.adsHeld = false; // zmiana broni kończy celowanie
@@ -815,7 +815,7 @@ addEventListener('mousemove', (e) => {
   if (!locked) return;
   const W = curWeapon();
   const zoomK = G.ads && W ? (W.scope ? 0.3 : 0.65) : 1;
-  const sens = 0.0022 * zoomK;
+  const sens = 0.0022 * zoomK * SENS;
   me.ry -= e.movementX * sens;
   me.rx = clamp(me.rx - e.movementY * sens, -1.45, 1.45);
 });
@@ -1326,39 +1326,42 @@ function renderPlayersList() {
   const all = [...G.roster.values()];
   const host = amHost();
   const edit = host && (G.state === 'lobby' || G.state === 'countdown');
-  $('hostInfo').innerHTML = host ? '👑 Jesteś hostem — ustawiasz drużyny i mecz.' : `👑 Host: <b>${esc(nameOf(G.hostId))}</b> — on ustawia drużyny i mecz.`;
-  $('teamHint').textContent = edit ? 'przeciągnij gracza na drużynę albo kliknij gracza, a potem drużynę' : '';
+  const humansN = all.filter((p) => !p.bot).length, botsN = all.length - humansN;
+  $('lobbyStatus').innerHTML = `<span class="pill">🙂 <b>${humansN}</b> player${humansN === 1 ? '' : 's'}</span><span class="pill">🤖 <b>${botsN}</b> bots</span><span class="pill">👑 ${esc(nameOf(G.hostId))}</span>`;
+  $('hostInfo').innerHTML = host ? 'You are the <b>host</b>. You set up the teams and the match.' : `<b>${esc(nameOf(G.hostId))}</b> is the host and sets up the teams and the match.`;
+  $('teamHint').textContent = edit ? 'Drag a player onto a team, or click a player and then a team. Click a team name to rename it.' : 'Only the host can arrange teams.';
   $('teamTools').innerHTML = !edit ? '' : `
-    <button data-act="solo">Wszyscy solo</button>
-    <span class="grp">Losowo po <input type="number" id="autoSize" min="2" max="50" value="${G.autoSize || 2}">
-      <label><input type="checkbox" id="autoBots"${G.autoBots ? ' checked' : ''}> z botami</label>
-      <button data-act="auto">Losuj</button></span>
-    <button data-act="fill">Rozdziel boty do drużyn graczy</button>
-    <button data-act="clean">Usuń puste</button>`;
+    <button class="btn ghost" data-act="solo">Everyone solo</button>
+    <span class="grp">Random teams of
+      <span class="stepper"><button data-auto-d="-1">−</button><input type="number" id="autoSize" min="2" max="50" value="${G.autoSize || 2}"><button data-auto-d="1">+</button></span>
+      <label><span class="toggle"><input type="checkbox" id="autoBots"${G.autoBots ? ' checked' : ''}><span></span></span>incl. bots</label>
+      <button class="btn accent" data-act="auto">Shuffle</button></span>
+    <button class="btn ghost" data-act="fill">Spread bots over player teams</button>
+    <button class="btn ghost" data-act="clean">Remove empty teams</button>`;
   const chip = (p) => {
-    const icon = p.bot ? '🤖' : p.id === G.hostId ? '👑' : '🙂';
-    const cls = ['chip', p.id === G.myId ? 'me' : '', edit ? 'can' : '', G.selChip === p.id ? 'sel' : ''].join(' ');
-    const hostBtn = edit && !p.bot && p.id !== G.myId ? `<button class="mkhost" data-host="${p.id}" title="Przekaż hosta">👑</button>` : '';
-    return `<span class="${cls}" data-pid="${p.id}"${edit ? ' draggable="true"' : ''}>${icon} ${esc(p.name)}${hostBtn}</span>`;
+    const av = p.bot ? '🤖' : p.id === G.hostId ? '👑' : esc(p.name.slice(0, 1).toUpperCase());
+    const cls = ['chip', p.bot ? 'bot' : 'human', p.id === G.myId ? 'me' : '', edit ? 'can' : '', G.selChip === p.id ? 'sel' : ''].join(' ');
+    const hostBtn = edit && !p.bot && p.id !== G.myId ? `<button class="mkhost" data-host="${p.id}" title="Make host">👑</button>` : '';
+    return `<span class="${cls}" data-pid="${p.id}"${edit ? ' draggable="true"' : ''}><span class="av">${av}</span>${esc(p.name)}${p.id === G.myId ? ' (you)' : ''}${hostBtn}</span>`;
   };
   const card = (id, members) => {
     const t = teamOf(id), solo = id === 0;
-    const head = solo ? `<span class="tname" style="pointer-events:none">Solo / bez drużyny</span>`
+    const head = solo ? `<span class="tname" style="pointer-events:none">No team (solo)</span>`
       : `<input class="tname" data-rename="${id}" value="${esc(t.name)}" maxlength="20"${edit ? '' : ' disabled'}>`;
-    const del = edit && !solo ? `<button class="tdel" data-del="${id}" title="Usuń drużynę">×</button>` : '';
+    const del = edit && !solo ? `<button class="tdel" data-del="${id}" title="Delete team">✕</button>` : '';
     return `<div class="tcard${solo ? ' solo' : ''}${edit && G.selChip != null ? ' pick' : ''}" data-team="${id}" style="--tc:${t.color}">
-      <div class="tchead">${head}<span class="tcount">${members.length}</span>${del}</div>
-      <div class="tchips">${members.map(chip).join('') || '<span class="tempty">pusto</span>'}</div></div>`;
+      <div class="tchead"><span class="tdot"></span>${head}<span class="tcount">${members.length}</span>${del}</div>
+      <div class="tchips">${members.map(chip).join('') || `<span class="tempty">${solo ? 'Nobody' : 'Empty — drop players here'}</span>`}</div></div>`;
   };
   const sortM = (a, b) => a.bot - b.bot || a.id - b.id;
   let html = '';
   for (const t of G.teams.values()) html += card(t.id, all.filter((p) => p.team === t.id).sort(sortM));
-  if (edit) html += `<div class="tcard add" data-add="1">+ Nowa drużyna</div>`;
+  if (edit) html += `<div class="tcard add" data-add="1"><b>+</b>New team</div>`;
   html += card(0, all.filter((p) => !p.team || !G.teams.has(p.team)).sort(sortM));
   $('teamBoard').innerHTML = html;
   const sb = $('startBtn');
   sb.disabled = G.state !== 'lobby' || !host;
-  sb.textContent = G.state === 'countdown' ? 'ODLICZANIE…' : G.state !== 'lobby' ? 'TRWA MECZ' : host ? 'START MECZU' : 'CZEKAMY NA HOSTA';
+  sb.textContent = G.state === 'countdown' ? 'STARTING…' : G.state !== 'lobby' ? 'MATCH IN PROGRESS' : host ? 'START MATCH' : 'WAITING FOR HOST';
   renderSettings();
 }
 // przenoszenie: przeciągnij i upuść albo kliknij żeton, potem drużynę
@@ -1399,6 +1402,8 @@ board.addEventListener('change', (e) => {
 board.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('input[data-rename]')) e.target.blur(); });
 board.addEventListener('focusout', () => { if (G.boardDirty) { G.boardDirty = false; setTimeout(renderPlayersList, 0); } });
 $('teamTools').addEventListener('click', (e) => {
+  const d = e.target.closest('button[data-auto-d]');
+  if (d) { const inp = $('autoSize'); inp.value = clamp((+inp.value || 2) + +d.dataset.autoD, 2, 50); G.autoSize = +inp.value; return; }
   const b = e.target.closest('button[data-act]');
   if (!b) return;
   const act = b.dataset.act;
@@ -1413,33 +1418,69 @@ $('teamTools').addEventListener('click', (e) => {
 function renderSettings() {
   const box = $('settingsBox');
   if (!box) return;
-  const dis = !amHost() || G.state !== 'lobby' ? ' disabled' : '';
-  box.innerHTML = S.SETTINGS_SCHEMA.map((f) => {
-    const v = G.settings[f.key];
-    let input;
-    if (f.type === 'int') input = `<input type="number" data-set="${f.key}" min="${f.min}" max="${f.max}" value="${v}"${dis}>`;
-    else if (f.type === 'bool') input = `<input type="checkbox" data-set="${f.key}"${v ? ' checked' : ''}${dis}>`;
-    else input = `<select data-set="${f.key}"${dis}>${f.opts.map(([val, lab]) => `<option value="${val}"${String(val) === String(v) ? ' selected' : ''}>${lab}</option>`).join('')}</select>`;
-    return `<label class="setRow"><span>${f.label}</span>${input}</label>`;
-  }).join('');
+  if (box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') { G.setDirty = true; return; }
+  const ro = !amHost() || G.state !== 'lobby';
+  const dis = ro ? ' disabled' : '';
+  let html = '';
+  for (const g of S.SETTINGS_GROUPS) {
+    html += `<div class="setGroup"><h4>${g}</h4>`;
+    for (const f of S.SETTINGS_SCHEMA.filter((x) => x.group === g)) {
+      const v = G.settings[f.key];
+      let ctl;
+      if (f.type === 'int') ctl = `<span class="stepper"><button data-step="${f.key}" data-d="-1"${dis}>−</button><input type="number" data-set="${f.key}" min="${f.min}" max="${f.max}" value="${v}"${dis}><button data-step="${f.key}" data-d="1"${dis}>+</button></span>`;
+      else if (f.type === 'bool') ctl = `<label class="toggle"><input type="checkbox" data-set="${f.key}"${v ? ' checked' : ''}${dis}><span></span></label>`;
+      else ctl = `<div class="seg${ro ? ' dis' : ''}" data-seg="${f.key}">${f.opts.map(([val, lab]) => `<button data-v="${val}" class="${String(val) === String(v) ? 'on' : ''}">${lab}</button>`).join('')}</div>`;
+      html += `<div class="setRow"><span>${f.label}</span>${ctl}</div>`;
+    }
+    html += `</div>`;
+  }
+  if (ro) html += `<div class="lockNote">🔒 ${G.state !== 'lobby' ? 'Settings are locked while a match is running.' : 'Only the host can change match settings.'}</div>`;
+  box.innerHTML = html;
 }
-$('settingsBox').addEventListener('change', (e) => {
-  const el = e.target.closest('[data-set]');
-  if (!el || !amHost()) return;
-  const v = el.type === 'checkbox' ? el.checked : el.value;
-  net.send({ t: 'settings', s: { [el.dataset.set]: v } });
+const sendSetting = (key, v) => { if (amHost()) net.send({ t: 'settings', s: { [key]: v } }); };
+let setTimer = 0;
+$('settingsBox').addEventListener('click', (e) => {
+  const st = e.target.closest('button[data-step]');
+  if (st) {
+    const f = S.SETTINGS_SCHEMA.find((x) => x.key === st.dataset.step);
+    sendSetting(f.key, clamp((+G.settings[f.key] || 0) + f.step * +st.dataset.d, f.min, f.max));
+    return;
+  }
+  const sb = e.target.closest('.seg[data-seg] button');
+  if (sb) sendSetting(sb.parentElement.dataset.seg, sb.dataset.v);
 });
+$('settingsBox').addEventListener('change', (e) => {
+  const el = e.target.closest('input[data-set]');
+  if (el) sendSetting(el.dataset.set, el.type === 'checkbox' ? el.checked : el.value);
+});
+$('settingsBox').addEventListener('input', (e) => { // liczby zapisuj też w trakcie pisania (bez czekania na Enter)
+  const el = e.target.closest('input[type=number][data-set]');
+  if (!el) return;
+  clearTimeout(setTimer);
+  setTimer = setTimeout(() => sendSetting(el.dataset.set, el.value), 450);
+});
+$('settingsBox').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
+$('settingsBox').addEventListener('focusout', () => { if (G.setDirty) { G.setDirty = false; setTimeout(renderSettings, 0); } });
+
+// zakładki menu
+$('tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-tab]');
+  if (!b) return;
+  for (const x of $('tabs').children) x.classList.toggle('on', x === b);
+  for (const p of document.querySelectorAll('.pane')) p.classList.toggle('on', p.dataset.pane === b.dataset.tab);
+});
+
 function memberStatus(p) {
-  if (p.id === G.myId) return G.dead ? (G.cards.get(G.myId) ? '🃏 karta' : '✖ nie żyje') : '✔ żyje';
+  if (p.id === G.myId) return G.dead ? (G.cards.get(G.myId) ? '🃏 card' : '✖ down') : '✔ alive';
   const o = G.others.get(p.id);
-  if (o && o.alive) return isMate(p.id) ? `✔ ${o.hp ?? 100} HP${o.sh ? ' + ' + o.sh : ''}` : '✔ żyje';
+  if (o && o.alive) return isMate(p.id) ? `✔ ${o.hp ?? 100} HP${o.sh ? ' + ' + o.sh : ''}` : '✔ alive';
   const c = G.cards.get(p.id);
-  if (c) return c.carrier ? '🃏 niesiona' : `🃏 ${Math.max(0, Math.ceil((c.until - performance.now()) / 1000))} s`;
-  return G.state === 'match' || G.state === 'ended' ? '✖ odpadł' : '—';
+  if (c) return c.carrier ? '🃏 carried' : `🃏 ${Math.max(0, Math.ceil((c.until - performance.now()) / 1000))} s`;
+  return G.state === 'match' || G.state === 'ended' ? '✖ out' : '—';
 }
 function renderScoreboard() {
   const all = [...G.roster.values()];
-  let html = `<h3>Drużyny</h3>`;
+  let html = `<h3>Teams</h3>`;
   const groups = [];
   for (const t of G.teams.keys()) { const m = all.filter((p) => p.team === t); if (m.length) groups.push([t, m]); }
   for (const p of all.filter((p) => !p.team)) groups.push([0, [p]]);
@@ -1457,16 +1498,16 @@ function renderTeamPanel() {
   if (G.myTeam <= 0) { el.innerHTML = ''; return; }
   const mates = [...G.roster.values()].filter((p) => p.team === G.myTeam && p.id !== G.myId);
   const nowT = performance.now();
-  el.innerHTML = `<div class="tpHead" style="color:${tColor(G.myTeam)}">Drużyna: ${esc(tName(G.myTeam))}</div>` + mates.map((p) => {
+  el.innerHTML = `<div class="tpHead" style="color:${tColor(G.myTeam)}">Team: ${esc(tName(G.myTeam))}</div>` + mates.map((p) => {
     const o = G.others.get(p.id);
     const card = G.cards.get(p.id);
     let status;
     if (o && o.alive) {
       status = `<div class="tpBars"><div class="tpSh" style="width:${o.sh || 0}%"></div><div class="tpHp" style="width:${o.hp ?? 100}%"></div></div>`;
     } else if (card) {
-      status = card.carrier ? `<span class="tpCard">🃏 karta niesie: ${esc(nameOf(card.carrier))}</span>`
-        : `<span class="tpCard">🃏 karta czeka: ${Math.max(0, Math.ceil((card.until - nowT) / 1000))} s</span>`;
-    } else status = G.state === 'match' ? '<span class="tpOut">✖ odpadł</span>' : '';
+      status = card.carrier ? `<span class="tpCard">🃏 carried by ${esc(nameOf(card.carrier))}</span>`
+        : `<span class="tpCard">🃏 card: ${Math.max(0, Math.ceil((card.until - nowT) / 1000))} s left</span>`;
+    } else status = G.state === 'match' ? '<span class="tpOut">✖ out</span>' : '';
     return `<div class="tpRow"><span class="tdot" style="background:${tColor(G.myTeam)}"></span><b>${esc(p.name)}</b>${status}</div>`;
   }).join('');
 }
@@ -1475,10 +1516,10 @@ function itemStats(it) {
   if (it.k === 'w') {
     const W = WEAPONS[it.type];
     const dmg = S.weaponDmg(it.type, it.rar);
-    return `Obrażenia ${dmg}${W.pellets > 1 ? '×' + W.pellets : ''} • ${(1 / W.interval).toFixed(1)} strz./s • Magazynek ${W.mag}`;
+    return `Damage ${dmg}${W.pellets > 1 ? '×' + W.pellets : ''} • ${(1 / W.interval).toFixed(1)} shots/s • Mag ${W.mag}`;
   }
   const C = CONSUMABLES[it.type];
-  return C.hp ? `+${C.hp} HP (do ${C.hpCap}) • ${C.time} s` : `+${C.sh} tarczy (do ${C.shCap}) • ${C.time} s`;
+  return C.hp ? `+${C.hp} HP (up to ${C.hpCap}) • ${C.time} s` : `+${C.sh} shield (up to ${C.shCap}) • ${C.time} s`;
 }
 
 const hudCache = {};
@@ -1534,9 +1575,9 @@ function updateHUD(dt) {
   if (G.reloading && it && it.k === 'w') {
     const Wi = WEAPONS[it.type];
     prog = Wi.shell ? (it.ammo + 1 - G.reloadT / Wi.reload) / Wi.mag : 1 - G.reloadT / Wi.reload;
-    plabel = 'PRZEŁADOWANIE';
+    plabel = 'RELOADING';
   } else if (G.useT > 0 && it && it.k === 'c') { prog = G.useT / CONSUMABLES[it.type].time; plabel = CONSUMABLES[it.type].name.toUpperCase(); }
-  if (G.rebootT > 0) { prog = Math.min(1, G.rebootT / G.settings.rebootTime); plabel = 'ODRADZANIE…'; }
+  if (G.rebootT > 0) { prog = Math.min(1, G.rebootT / G.settings.rebootTime); plabel = 'REBOOTING…'; }
   setClass('reloadRing', 'on', prog > 0);
   if (prog > 0) setStyle('reloadFg', 'strokeDashoffset', String(Math.round(163.4 * (1 - clamp(prog, 0, 1)))));
   setText('progressLabel', plabel);
@@ -1545,11 +1586,11 @@ function updateHUD(dt) {
   let outside = false;
   if (st && (G.state === 'match' || G.state === 'ended') && !G.dead) outside = Math.hypot(me.x - st.x, me.z - st.z) > st.r;
   setClass('stormfx', 'on', outside);
-  let si = 'Rozgrzewka — brak burzy';
+  let si = 'Warm-up — no storm';
   if (st && (G.state === 'match' || G.state === 'ended')) {
-    si = st.tm <= 0 ? 'Ostatnia strefa!' : `${st.shr ? '🌀 Burza się zacieśnia' : '⏳ Burza za'} ${fmt(st.tm)}`;
-    if (outside) si += ' • ⚠ JESTEŚ W BURZY';
-  } else if (G.state === 'countdown') si = `Start za ${G.cd}…`;
+    si = st.tm <= 0 ? 'Final zone!' : `${st.shr ? '🌀 Storm closing' : '⏳ Storm in'} ${fmt(st.tm)}`;
+    if (outside) si += ' • ⚠ YOU ARE IN THE STORM';
+  } else if (G.state === 'countdown') si = `Starting in ${G.cd}…`;
   setText('stormInfo', si);
   setText('aliveCnt', `👤 ${G.alive}`);
   setText('killCnt', `💀 ${G.kills}`);
@@ -1559,7 +1600,7 @@ function updateHUD(dt) {
   const oh = G.lastObjT > 0 ? G.objHpShow : null;
   setClass('objhp', 'on', !!oh);
   if (oh) {
-    setText('objName', oh.hp > 0 ? oh.name : `${oh.name} — ZNISZCZONO`);
+    setText('objName', oh.hp > 0 ? oh.name : `${oh.name} — DESTROYED`);
     setText('objTxt', `${Math.max(0, oh.hp)} / ${oh.max}`);
     setStyle('objFill', 'width', `${Math.round((Math.max(0, oh.hp) / oh.max) * 100)}%`);
   }
@@ -1575,22 +1616,22 @@ function updateHUD(dt) {
       if (inter.kind === 'reboot') {
         const cd = Math.ceil((G.rebootReadyAt - performance.now()) / 1000);
         p.style.setProperty('--rc', '#4cf2ff');
-        p.innerHTML = cd > 0 ? `<div class="pcard"><div><div class="pname" style="color:#4cf2ff">Punkt odrodzenia</div><div class="pstats">Ładuje się… ${cd} s</div></div></div>`
-          : `<div class="pcard"><div><div class="pname" style="color:#4cf2ff">Odrodź: ${esc(carrying().map((c) => nameOf(c.owner)).join(', '))}</div><div class="pstats">Przytrzymaj E przez ${G.settings.rebootTime} s</div></div></div><div class="pkey"><kbd>E</kbd>Przytrzymaj</div>`;
+        p.innerHTML = cd > 0 ? `<div class="pcard"><div><div class="pname" style="color:#4cf2ff">Reboot Van</div><div class="pstats">Recharging… ${cd} s</div></div></div>`
+          : `<div class="pcard"><div><div class="pname" style="color:#4cf2ff">Reboot ${esc(carrying().map((c) => nameOf(c.owner)).join(', '))}</div><div class="pstats">Hold E for ${G.settings.rebootTime} s</div></div></div><div class="pkey"><kbd>E</kbd>Hold</div>`;
         hudCache.prompt = 'reboot' + cd;
       } else if (inter.kind === 'card') {
         const col = tColor(inter.c.team);
         p.style.setProperty('--rc', col);
-        p.innerHTML = `<div class="pcard"><div><div class="pname" style="color:${col}">Karta: ${esc(nameOf(inter.c.owner))}</div><div class="pstats">Zanieś ją do Punktu Odrodzenia</div></div></div><div class="pkey"><kbd>E</kbd>Podnieś kartę</div>`;
+        p.innerHTML = `<div class="pcard"><div><div class="pname" style="color:${col}">${esc(nameOf(inter.c.owner))}'s reboot card</div><div class="pstats">Take it to the Reboot Van</div></div></div><div class="pkey"><kbd>E</kbd>Pick up card</div>`;
       } else if (inter.kind === 'chest') {
         p.style.setProperty('--rc', '#ffb52e');
-        p.innerHTML = `<div class="pcard"><div><div class="pname" style="color:#ffd24a">Skrzynia</div><div class="pstats">W środku broń i przedmioty</div></div></div><div class="pkey"><kbd>E</kbd>Otwórz</div>`;
+        p.innerHTML = `<div class="pcard"><div><div class="pname" style="color:#ffd24a">Chest</div><div class="pstats">Weapons and items inside</div></div></div><div class="pkey"><kbd>E</kbd>Open</div>`;
       } else {
         const l = inter.l, c = S.itemColor(l);
-        const rarName = l.k === 'w' ? RARITIES[l.rar].name : 'Przedmiot';
+        const rarName = l.k === 'w' ? RARITIES[l.rar].name : 'Item';
         const name = l.k === 'w' ? WEAPONS[l.type].name : `${CONSUMABLES[l.type].name} ×${l.n}`;
         p.style.setProperty('--rc', c);
-        p.innerHTML = `<div class="pcard"><img src="${FX.itemIcon(l.type, l.rar || 0)}"><div><div class="pname" style="color:${c}">${name}</div><div class="prar">${rarName}</div><div class="pstats">${itemStats(l)}</div></div></div><div class="pkey"><kbd>E</kbd>Podnieś</div>`;
+        p.innerHTML = `<div class="pcard"><img src="${FX.itemIcon(l.type, l.rar || 0)}"><div><div class="pname" style="color:${c}">${name}</div><div class="prar">${rarName}</div><div class="pstats">${itemStats(l)}</div></div></div><div class="pkey"><kbd>E</kbd>Pick up</div>`;
       }
     }
   } else hudCache.prompt = null;
@@ -1601,26 +1642,26 @@ function updateHUD(dt) {
   if (G.killMsgT > 0) G.killMsgT -= dt;
   if (G.endInfo) {
     if ((G.endInfo.wids || []).includes(G.myId)) big = '#1 VICTORY ROYALE!';
-    else big = G.endInfo.winner ? `WYGRYWA ${G.endInfo.winner}` : 'KONIEC MECZU';
-    if (G.endInfo.team) sub = `Drużyna ${G.endInfo.team}: ${G.endInfo.winner} • `;
-    sub = (sub || '') + 'Powrót do lobby za chwilę…';
-  } else if (G.state === 'countdown') { big = `MECZ ZA ${G.cd}`; sub = 'Przygotuj się!'; }
-  else if (G.state === 'lobby') sub = G.dead ? 'Zginąłeś — odrodzenie za chwilę…' : 'ROZGRZEWKA • Esc → START MECZU';
+    else big = G.endInfo.winner ? `${G.endInfo.winner} WINS` : 'MATCH OVER';
+    if (G.endInfo.team) sub = `Team ${tName(G.endInfo.team)}: ${G.endInfo.winner} • `;
+    sub = (sub || '') + 'Back to the lobby in a moment…';
+  } else if (G.state === 'countdown') { big = `MATCH IN ${G.cd}`; sub = 'Get ready!'; }
+  else if (G.state === 'lobby') sub = G.dead ? 'You died — respawning in a moment…' : (amHost() ? 'WARM-UP • Esc → START MATCH' : 'WARM-UP • waiting for the host to start the match');
   else if (G.state === 'match') {
     const so = G.spectating ? specTarget() : null;
     const sname = so ? (G.roster.get(so.id) || {}).name || '?' : '—';
     if (G.dead && G.deadInfo && !G.deadInfo.lobby && G.deadInfo.canReboot) {
-      big = 'WYELIMINOWANY'; red = true;
+      big = 'ELIMINATED'; red = true;
       const card = G.cards.get(G.myId);
-      const st = !card ? '' : card.carrier ? `kartę niesie ${nameOf(card.carrier)} — trzymaj kciuki!` : `twoja karta czeka ${Math.max(0, Math.ceil((card.until - performance.now()) / 1000))} s — drużyna może cię odrodzić`;
-      sub = `${st} • obserwujesz: ${sname}`;
+      const st = !card ? '' : card.carrier ? `${nameOf(card.carrier)} is carrying your card — fingers crossed!` : `your reboot card is waiting ${Math.max(0, Math.ceil((card.until - performance.now()) / 1000))} s — your team can reboot you`;
+      sub = `${st} • spectating ${sname}`;
     } else if (G.dead && G.deadInfo && !G.deadInfo.lobby) {
-      big = 'WYELIMINOWANY'; red = true;
-      sub = `${G.deadInfo.place ? `Miejsce #${G.deadInfo.place}` : 'Drużyna wciąż walczy'}${G.deadInfo.byName ? ` • pokonał cię ${G.deadInfo.byName}` : ''} • obserwujesz: ${sname} (LPM — zmień)`;
-    } else if (G.spectating) sub = `Trwa mecz — obserwujesz: ${sname}. Zagrasz w następnym!`;
-    else if (me.mode === 'bus') sub = 'SPACJA — wyskocz z Autobusu Bojowego';
-    else if (me.mode === 'sky') sub = 'SPACJA — otwórz lotnię';
-    else if (carrying().length) sub = `🃏 Niesiesz kartę: ${carrying().map((c) => nameOf(c.owner)).join(', ')} — zanieś do ♻ Punktu Odrodzenia (niebieski znacznik)`;
+      big = 'ELIMINATED'; red = true;
+      sub = `${G.deadInfo.place ? `Placed #${G.deadInfo.place}` : 'Your team is still fighting'}${G.deadInfo.byName ? ` • eliminated by ${G.deadInfo.byName}` : ''} • spectating ${sname} (LMB — next)`;
+    } else if (G.spectating) sub = `Match in progress — spectating ${sname}. You'll play in the next one!`;
+    else if (me.mode === 'bus') sub = 'SPACE — jump out of the Battle Bus';
+    else if (me.mode === 'sky') sub = 'SPACE — deploy glider';
+    else if (carrying().length) sub = `🃏 Carrying ${carrying().map((c) => nameOf(c.owner)).join(', ')}'s card — bring it to the ♻ Reboot Van (blue marker)`;
   }
   if (!sub && G.killMsgT > 0) sub = G.killMsg;
   setText('bigmsg', big); setClass('bigmsg', 'red', red);
@@ -1777,7 +1818,7 @@ requestAnimationFrame(frame);
 try { $('nick').value = localStorage.getItem('fortjede-nick') || ''; } catch { /* brak storage */ }
 function join() {
   FX.ac();
-  const name = $('nick').value.trim() || `Gracz${Math.floor(Math.random() * 1000)}`;
+  const name = $('nick').value.trim() || `Player${Math.floor(Math.random() * 1000)}`;
   try { localStorage.setItem('fortjede-nick', name); } catch { /* brak storage */ }
   $('playBtn').disabled = true;
   connect(name);
@@ -1787,17 +1828,22 @@ $('nick').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); })
 $('resumeBtn').onclick = lock;
 $('startBtn').onclick = () => { net.send({ t: 'start' }); lock(); };
 $('nick').focus();
-$('quality').value = QKEY;
-$('adsMode').value = ADS_MODE;
-$('adsMode').addEventListener('change', (e) => {
-  ADS_MODE = e.target.value; G.adsHeld = false;
-  try { localStorage.setItem('fortjede-ads', ADS_MODE); } catch { /* brak storage */ }
-});
-$('quality').addEventListener('change', (e) => {
-  QKEY = e.target.value; QUAL = VIS.QUALITY[QKEY];
-  try { localStorage.setItem('fortjede-q', QKEY); } catch { /* brak storage */ }
-  applyQuality();
-});
+const store = (k, v) => { try { localStorage.setItem(k, v); } catch { /* brak storage */ } };
+const load = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+function bindSeg(id, value, onPick) {
+  const el = $(id);
+  const mark = (v) => { for (const b of el.children) b.classList.toggle('on', b.dataset.v === v); };
+  mark(value);
+  el.addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b) { mark(b.dataset.v); onPick(b.dataset.v); } });
+}
+bindSeg('qualitySeg', QKEY, (v) => { QKEY = v; QUAL = VIS.QUALITY[v]; store('fortjede-q', v); applyQuality(); });
+bindSeg('adsSeg', ADS_MODE, (v) => { ADS_MODE = v; G.adsHeld = false; store('fortjede-ads', v); });
+SENS = +load('fortjede-sens', 1) || 1;
+$('sens').value = SENS; $('sensVal').textContent = `×${SENS.toFixed(2)}`;
+$('sens').addEventListener('input', (e) => { SENS = +e.target.value; $('sensVal').textContent = `×${SENS.toFixed(2)}`; store('fortjede-sens', SENS); });
+const VOL0 = +load('fortjede-vol', 0.8);
+$('vol').value = VOL0; FX.setVolume(VOL0); $('volVal').textContent = `${Math.round(VOL0 * 100)}%`;
+$('vol').addEventListener('input', (e) => { const v = +e.target.value; FX.setVolume(v); $('volVal').textContent = `${Math.round(v * 100)}%`; store('fortjede-vol', v); });
 applyQuality();
 const qsNick = new URLSearchParams(location.search).get('nick');
 if (qsNick) { $('nick').value = qsNick.slice(0, 16); join(); }

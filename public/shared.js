@@ -15,29 +15,29 @@ export const MODES = ['ground', 'sky', 'glide', 'bus', 'dead', 'climb'];
 export const MODE_CODE = { ground: 0, sky: 1, glide: 2, bus: 3, dead: 4, climb: 5 };
 
 export const RARITIES = [
-  { name: 'Pospolita', color: '#b8b8b8', mult: 1.0 },
-  { name: 'Niepospolita', color: '#5cd65c', mult: 1.06 },
-  { name: 'Rzadka', color: '#3fa9ff', mult: 1.12 },
-  { name: 'Epicka', color: '#c05cff', mult: 1.18 },
-  { name: 'Legendarna', color: '#ffb52e', mult: 1.25 },
+  { name: 'Common', color: '#b8b8b8', mult: 1.0 },
+  { name: 'Uncommon', color: '#5cd65c', mult: 1.06 },
+  { name: 'Rare', color: '#3fa9ff', mult: 1.12 },
+  { name: 'Epic', color: '#c05cff', mult: 1.18 },
+  { name: 'Legendary', color: '#ffb52e', mult: 1.25 },
 ];
 
 // kick = odrzut kamery (rad) na strzał, climb = część odrzutu, która zostaje (trzeba ściągać myszką),
 // shake = wstrząs kamery, shell = przeładowanie po jednym naboju (s/nabój)
 export const WEAPONS = {
-  pistol: { name: 'Pistolet', dmg: 25, interval: 0.15, auto: false, mag: 16, reload: 1.3, spread: 0.022, ads: 0.008, pellets: 1, range: 150, head: 2, kick: 0.024, kickYaw: 0.006, climb: 0, shake: 0.25, bloom: 0.01, zoom: 62, firstShot: true },
-  smg: { name: 'Pistolet maszynowy', dmg: 16, interval: 0.07, auto: true, mag: 30, reload: 1.9, spread: 0.045, ads: 0.028, pellets: 1, range: 90, head: 1.75, kick: 0.008, kickYaw: 0.007, climb: 0.2, shake: 0.18, bloom: 0.004, zoom: 62 },
-  ar: { name: 'Karabin szturmowy', dmg: 32, interval: 0.165, auto: true, mag: 30, reload: 2.2, spread: 0.03, ads: 0.006, pellets: 1, range: 220, head: 1.5, kick: 0.016, kickYaw: 0.005, climb: 0.3, shake: 0.25, bloom: 0.006, zoom: 52, firstShot: true },
-  shotgun: { name: 'Strzelba pompka', dmg: 11, interval: 0.9, auto: false, mag: 5, reload: 0.55, shell: true, spread: 0.075, ads: 0.06, pellets: 10, range: 45, head: 1.6, kick: 0.075, kickYaw: 0.012, climb: 0, shake: 1, bloom: 0, zoom: 62, falloff: [8, 32] },
-  sniper: { name: 'Snajperka', dmg: 110, interval: 1.3, auto: false, mag: 1, reload: 2.4, spread: 0.09, ads: 0, pellets: 1, range: 500, head: 2.5, kick: 0.09, kickYaw: 0.012, climb: 0, shake: 1, bloom: 0, zoom: 18, scope: true },
+  pistol: { name: 'Pistol', dmg: 25, interval: 0.15, auto: false, mag: 16, reload: 1.3, spread: 0.022, ads: 0.008, pellets: 1, range: 150, head: 2, kick: 0.024, kickYaw: 0.006, climb: 0, shake: 0.25, bloom: 0.01, zoom: 62, firstShot: true },
+  smg: { name: 'SMG', dmg: 16, interval: 0.07, auto: true, mag: 30, reload: 1.9, spread: 0.045, ads: 0.028, pellets: 1, range: 90, head: 1.75, kick: 0.008, kickYaw: 0.007, climb: 0.2, shake: 0.18, bloom: 0.004, zoom: 62 },
+  ar: { name: 'Assault Rifle', dmg: 32, interval: 0.165, auto: true, mag: 30, reload: 2.2, spread: 0.03, ads: 0.006, pellets: 1, range: 220, head: 1.5, kick: 0.016, kickYaw: 0.005, climb: 0.3, shake: 0.25, bloom: 0.006, zoom: 52, firstShot: true },
+  shotgun: { name: 'Pump Shotgun', dmg: 11, interval: 0.9, auto: false, mag: 5, reload: 0.55, shell: true, spread: 0.075, ads: 0.06, pellets: 10, range: 45, head: 1.6, kick: 0.075, kickYaw: 0.012, climb: 0, shake: 1, bloom: 0, zoom: 62, falloff: [8, 32] },
+  sniper: { name: 'Sniper Rifle', dmg: 110, interval: 1.3, auto: false, mag: 1, reload: 2.4, spread: 0.09, ads: 0, pellets: 1, range: 500, head: 2.5, kick: 0.09, kickYaw: 0.012, climb: 0, shake: 1, bloom: 0, zoom: 18, scope: true },
 };
-export const PICKAXE = { name: 'Kilof', dmg: 20, interval: 0.5, auto: true, mag: 0, melee: true, range: 2.6, head: 1, kick: 0.01, kickYaw: 0, climb: 0, shake: 0.1, bloom: 0, spread: 0, ads: 0, pellets: 1, zoom: 75 };
+export const PICKAXE = { name: 'Pickaxe', dmg: 20, interval: 0.5, auto: true, mag: 0, melee: true, range: 2.6, head: 1, kick: 0.01, kickYaw: 0, climb: 0, shake: 0.1, bloom: 0, spread: 0, ads: 0, pellets: 1, zoom: 75 };
 
 export const CONSUMABLES = {
-  bandage: { name: 'Bandaże', time: 2.5, max: 15, pick: 5, hp: 15, hpCap: 75, color: 0xf2f2f2 },
-  medkit: { name: 'Apteczka', time: 6, max: 3, pick: 1, hp: 100, hpCap: 100, color: 0xe63946 },
-  shield_s: { name: 'Mała tarcza', time: 2, max: 6, pick: 3, sh: 25, shCap: 50, color: 0x4cc9f0 },
-  shield_b: { name: 'Duża tarcza', time: 4.5, max: 3, pick: 1, sh: 50, shCap: 100, color: 0x3a86ff },
+  bandage: { name: 'Bandages', time: 2.5, max: 15, pick: 5, hp: 15, hpCap: 75, color: 0xf2f2f2 },
+  medkit: { name: 'Med Kit', time: 6, max: 3, pick: 1, hp: 100, hpCap: 100, color: 0xe63946 },
+  shield_s: { name: 'Small Shield', time: 2, max: 6, pick: 3, sh: 25, shCap: 50, color: 0x4cc9f0 },
+  shield_b: { name: 'Big Shield', time: 4.5, max: 3, pick: 1, sh: 50, shCap: 100, color: 0x3a86ff },
 };
 
 // Bronie botów (uproszczone, liczone na serwerze)
@@ -62,11 +62,11 @@ export const STORM_START_R = 260;
 // drużyny tworzy host (dowolnie wiele); n-ta drużyna dostaje kolor i nazwę z listy, potem kolor wyliczony
 export const SOLO_COLOR = '#b0b0b0';
 const TEAM_PALETTE = ['#3a86ff', '#ff4d6d', '#2ec27e', '#ffbe0b', '#9b5de5', '#ff8c42', '#ff6ec7', '#00c2d1', '#c08552', '#8d99ae'];
-const TEAM_DEFAULT_NAMES = ['Niebiescy', 'Czerwoni', 'Zieloni', 'Żółci', 'Fioletowi', 'Pomarańczowi', 'Różowi', 'Turkusowi', 'Brązowi', 'Szarzy'];
+const TEAM_DEFAULT_NAMES = ['Blue', 'Red', 'Green', 'Yellow', 'Purple', 'Orange', 'Pink', 'Teal', 'Brown', 'Grey'];
 export function teamDefaults(n) { // n = 0, 1, 2… kolejna utworzona drużyna
   if (n < TEAM_PALETTE.length) return { name: TEAM_DEFAULT_NAMES[n], color: TEAM_PALETTE[n] };
   const hue = Math.round((n * 137.5) % 360);
-  return { name: `Drużyna ${n + 1}`, color: `hsl(${hue}, 75%, 60%)` };
+  return { name: `Team ${n + 1}`, color: `hsl(${hue}, 75%, 60%)` };
 }
 export const CARD_TIME = 90;        // s — tyle karta leży na ziemi, zanim przepadnie
 export const REBOOT_TIME = 4;       // s — przytrzymanie E przy punkcie odrodzenia
@@ -75,18 +75,19 @@ export const REBOOT_R = 4.5;        // m — zasięg interakcji z punktem odrodz
 export const sameTeam = (a, b) => !!a && !!b && a !== b && a.team > 0 && a.team === b.team;
 
 // ustawienia meczu (zmienia host w lobby)
+export const SETTINGS_GROUPS = ['Bots', 'Reboot', 'Combat & storm', 'Starting stats'];
 export const SETTINGS_SCHEMA = [
-  { key: 'bots', label: 'Liczba botów (max 99)', type: 'int', min: 0, max: 99, def: 8 },
-  { key: 'botLevel', label: 'Poziom botów', type: 'select', opts: [['easy', 'Łatwe'], ['normal', 'Normalne'], ['hard', 'Trudne']], def: 'normal' },
-  { key: 'reboot', label: 'Odradzanie (karty)', type: 'bool', def: true },
-  { key: 'cardTime', label: 'Czas karty na ziemi (s)', type: 'int', min: 10, max: 300, def: 90 },
-  { key: 'rebootTime', label: 'Przytrzymanie E przy punkcie (s)', type: 'int', min: 1, max: 20, def: 4 },
-  { key: 'rebootCooldown', label: 'Przerwa punktu odrodzenia (s)', type: 'int', min: 0, max: 180, def: 15 },
-  { key: 'friendlyFire', label: 'Ogień do swoich', type: 'bool', def: false },
-  { key: 'stormSpeed', label: 'Szybkość burzy', type: 'select', opts: [[0.5, 'Wolna ×0.5'], [0.75, 'Spokojna ×0.75'], [1, 'Normalna'], [1.5, 'Szybka ×1.5'], [2, 'Bardzo szybka ×2']], def: 1 },
-  { key: 'loot', label: 'Ilość lootu', type: 'select', opts: [[0.5, 'Mało'], [1, 'Normalnie'], [1.5, 'Dużo'], [2, 'Bardzo dużo']], def: 1 },
-  { key: 'startHp', label: 'Zdrowie na start', type: 'int', min: 1, max: 100, def: 100 },
-  { key: 'startShield', label: 'Tarcza na start', type: 'int', min: 0, max: 100, def: 0 },
+  { key: 'bots', group: 'Bots', label: 'Number of bots', type: 'int', min: 0, max: 99, step: 1, def: 8 },
+  { key: 'botLevel', group: 'Bots', label: 'Bot difficulty', type: 'select', opts: [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']], def: 'normal' },
+  { key: 'reboot', group: 'Reboot', label: 'Reboot cards', type: 'bool', def: true },
+  { key: 'cardTime', group: 'Reboot', label: 'Card lifetime (s)', type: 'int', min: 10, max: 300, step: 10, def: 90 },
+  { key: 'rebootTime', group: 'Reboot', label: 'Hold E to reboot (s)', type: 'int', min: 1, max: 20, step: 1, def: 4 },
+  { key: 'rebootCooldown', group: 'Reboot', label: 'Reboot van cooldown (s)', type: 'int', min: 0, max: 180, step: 5, def: 15 },
+  { key: 'friendlyFire', group: 'Combat & storm', label: 'Friendly fire', type: 'bool', def: false },
+  { key: 'stormSpeed', group: 'Combat & storm', label: 'Storm speed', type: 'select', opts: [[0.5, '×0.5'], [0.75, '×0.75'], [1, '×1'], [1.5, '×1.5'], [2, '×2']], def: 1 },
+  { key: 'loot', group: 'Combat & storm', label: 'Loot amount', type: 'select', opts: [[0.5, 'Low'], [1, 'Normal'], [1.5, 'High'], [2, 'Max']], def: 1 },
+  { key: 'startHp', group: 'Starting stats', label: 'Starting health', type: 'int', min: 1, max: 100, step: 10, def: 100 },
+  { key: 'startShield', group: 'Starting stats', label: 'Starting shield', type: 'int', min: 0, max: 100, step: 25, def: 0 },
 ];
 export const DEFAULT_SETTINGS = Object.fromEntries(SETTINGS_SCHEMA.map((f) => [f.key, f.def]));
 export function sanitizeSettings(cur, upd) {
@@ -104,7 +105,7 @@ export function sanitizeSettings(cur, upd) {
 
 // niszczenie otoczenia: wytrzymałość obiektów i obrażenia zadawane im przez broń (na trafienie / śrucinę)
 export const OBJ_HP = { wall: 150, roof: 200, crate: 60, container: 400, tree: 120, rock: 250 };
-export const OBJ_NAME = { wall: 'Ściana', roof: 'Dach', crate: 'Skrzynka', container: 'Kontener', tree: 'Drzewo', rock: 'Skała' };
+export const OBJ_NAME = { wall: 'Wall', roof: 'Roof', crate: 'Crate', container: 'Container', tree: 'Tree', rock: 'Rock' };
 export const STRUCT_DMG = { pickaxe: 50, pistol: 12, smg: 7, ar: 14, shotgun: 6, sniper: 60 };
 // klucz obiektu: 'b12' = boxes[12], 'c5' = cyls[5]
 export function objByKey(m, key) {
@@ -193,7 +194,7 @@ export function busPos(bus, t) {
 
 // ---------------------------------------------------------------- mapa
 
-const TOWN_NAMES = ['Krzywe Wieże', 'Słone Źródła', 'Przyjemny Park', 'Leniwe Łąki', 'Emerytowe Doki', 'Bagienne Budy', 'Kapuściane Pole'];
+const TOWN_NAMES = ['Crooked Towers', 'Salty Wells', 'Cozy Park', 'Lazy Meadows', 'Retirement Docks', 'Swampy Shacks', 'Cabbage Fields'];
 const HOUSE_COLORS = [0xe9c46a, 0xf4a261, 0xe76f51, 0x90be6d, 0x8ecae6, 0xcdb4db, 0xffd6a5, 0xd4a373, 0xf28482, 0x84a59d];
 const ROOF_COLORS = [0x9d0208, 0x6a040f, 0x264653, 0x3d405b, 0x7f5539, 0x495057];
 const CONTAINER_COLORS = [0xc0392b, 0x2471a3, 0x1e8449, 0xd68910, 0x7d3c98];

@@ -5,5 +5,5 @@ Przeglądarkowy battle royale w three.js (bez kroku budowania). Serwer: `server.
 ## Zasady pracy
 
 - **Po każdej zakończonej zmianie zawsze rób commit i push** do `origin main` (https://github.com/bokamix/fortjede, remote po SSH). Nie pytaj o zgodę, po prostu commituj i wypychaj, z opisem zmian po polsku.
-- Komunikacja z użytkownikiem i teksty w grze są po polsku.
+- Z użytkownikiem rozmawiaj po polsku, ale **wszystkie teksty w grze (UI, HUD, komunikaty, nazwy) są po angielsku**.
 - Kod wspólny dla serwera i klienta (mapa, kolizje, bronie, ustawienia) trzymaj w `public/shared.js`.

@@ -195,7 +195,8 @@ export function itemIcon(type, rar = 0) {
 }
 
 // ================================================================ audio
-let actx = null, noise = null, out = null;
+let actx = null, noise = null, out = null, VOL = 1;
+export function setVolume(v) { VOL = v; if (out) out.gain.value = 0.9 * v; }
 export function ac() {
   if (!actx) {
     actx = new (window.AudioContext || window.webkitAudioContext)();
@@ -205,7 +206,7 @@ export function ac() {
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     const comp = actx.createDynamicsCompressor();
     comp.threshold.value = -14; comp.ratio.value = 6; comp.attack.value = 0.002; comp.release.value = 0.15;
-    out = actx.createGain(); out.gain.value = 0.9;
+    out = actx.createGain(); out.gain.value = 0.9 * VOL;
     out.connect(comp).connect(actx.destination);
   }
   if (actx.state === 'suspended') actx.resume();

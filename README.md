@@ -1,5 +1,7 @@
 # FORTJEDE 🪂
 
+> Interfejs gry jest po angielsku. Menu (Esc) ma zakładki: Teams, Match settings, Options (grafika, celowanie, czułość myszy, głośność) i Controls.
+
 Przeglądarkowy battle royale w stylu Fortnite (bez budowania), napisany w three.js. Nie ma tu bundlera ani kroku budowania: serwer Node podaje pliki wprost.
 
 ## Start
