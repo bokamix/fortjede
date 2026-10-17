@@ -243,7 +243,7 @@ function setLoot(list, opened) {
 // ================================================================ karty odrodzenia
 const cardMeshes = new Map();
 function makeCardMesh(team, name) {
-  const col = S.TEAM_COLORS[team] || '#ffffff';
+  const col = tColor(team);
   const g = new THREE.Group();
   const c = document.createElement('canvas'); c.width = 128; c.height = 180;
   const x = c.getContext('2d');
@@ -284,7 +284,7 @@ function updateMarkers() {
   if (G.state === 'match' && !G.dead) {
     for (const c of G.cards.values()) {
       if (c.carrier || c.owner === G.myId || !cardMeshes.has(c.owner)) continue;
-      want.push({ key: 'c' + c.owner, x: c.x, y: c.y + 1.2, z: c.z, icon: '🃏', label: nameOf(c.owner), color: S.TEAM_COLORS[c.team] });
+      want.push({ key: 'c' + c.owner, x: c.x, y: c.y + 1.2, z: c.z, icon: '🃏', label: nameOf(c.owner), color: tColor(c.team) });
     }
     if (carrying().length) want.push({ key: 'reboot', x: gm.reboot.x, y: gm.reboot.y + 3.5, z: gm.reboot.z, icon: '♻', label: 'Punkt Odrodzenia', color: '#4cf2ff' });
   }
@@ -359,7 +359,7 @@ const G = {
   endInfo: null, killMsg: '', killMsgT: 0,
   lastObj: null, lastObjAt: 0, lastObjT: 0, objHpShow: null,
   myTeam: 0, cards: new Map(), rebootReadyAt: 0, rebootT: 0, teamPanelT: 0,
-  settings: { ...S.DEFAULT_SETTINGS }, hostId: null,
+  settings: { ...S.DEFAULT_SETTINGS }, hostId: null, teams: new Map(), selChip: null,
 };
 const me = { x: 0, y: 30, z: 0, vx: 0, vy: 0, vz: 0, ry: 0, rx: 0, mode: 'ground', onGround: false, crouch: false, h: S.PLAYER_H, slideT: 0, climb: null, eyeH: 1.6 };
 // odrzut kamery: p/y = aktualne przesunięcie, tp/ty = cel (sprężyna), shake = wstrząs
@@ -381,8 +381,8 @@ function getOther(id) {
 function refreshTag(o) {
   const info = G.roster.get(o.id);
   if (!info) return;
-  const tc = G.myTeam > 0 && info.team === G.myTeam ? S.TEAM_COLORS[info.team] : null;
-  const key = info.name + '|' + tc;
+  const tc = G.myTeam > 0 && info.team === G.myTeam ? tColor(info.team) : null;
+  const key = info.name + '|' + tc + '|' + G.myTeam;
   if (o.av.tagKey === key) return;
   o.av.root.remove(o.av.tag);
   o.av.tag = makeNameSprite(info.name, info.bot, tc);
@@ -397,6 +397,9 @@ function removeOther(id) {
 }
 const isMate = (id) => G.myTeam > 0 && id !== G.myId && (G.roster.get(id) || {}).team === G.myTeam;
 const amHost = () => G.hostId === G.myId;
+const teamOf = (t) => G.teams.get(t) || { id: 0, name: 'Solo', color: S.SOLO_COLOR };
+const tColor = (t) => teamOf(t).color;
+const tName = (t) => teamOf(t).name;
 const nameOf = (id) => (G.roster.get(id) || {}).name || '?';
 const carrying = () => [...G.cards.values()].filter((c) => c.carrier === G.myId);
 // koledzy z drużyny są „przezroczyści” dla kul
@@ -459,6 +462,7 @@ function onMsg(m) {
       G.roster = new Map(m.list.map((p) => [p.id, p]));
       G.myTeam = (G.roster.get(G.myId) || {}).team || 0;
       G.hostId = m.host;
+      G.teams = new Map((m.teams || []).map((t) => [t.id, t]));
       for (const o of G.others.values()) refreshTag(o);
       renderPlayersList();
       break;
@@ -471,15 +475,18 @@ function onMsg(m) {
       G.alive = c.a; G.storm = c.st; G.cd = c.cd;
       if (c.bt != null) G.busTarget = c.bt;
       const seen = new Set();
+      const nowMs = performance.now();
       for (const e of c.ps) {
         const [id, x, y, z, ry, rx, md, w, alv, mv, cr, ohp, osh] = e;
         if (id === G.myId) continue;
         seen.add(id);
         const o = getOther(id);
+        o.seen = nowMs;
         o.tgt.set(x, y, z); o.tRy = ry; o.rx = rx; o.mode = md; o.w = w || 'pickaxe'; o.alive = !!alv; o.mv = !!mv; o.cr = !!cr; o.hp = ohp; o.sh = osh;
         if (o.fresh || o.cur.distanceToSquared(o.tgt) > 400) { o.cur.copy(o.tgt); o.ry = ry; o.fresh = false; }
       }
-      for (const id of [...G.others.keys()]) if (!seen.has(id)) removeOther(id);
+      // dalekie postacie przychodzą rzadziej — usuwaj dopiero po dłuższej ciszy
+      for (const [id, o] of [...G.others]) if (!seen.has(id) && nowMs - (o.seen || 0) > 2000) removeOther(id);
       break;
     }
     case 'matchstart': {
@@ -544,7 +551,7 @@ function onMsg(m) {
       if (m.from) { FX.sndHurt(); RC.shake = Math.min(1.5, RC.shake + 0.35); }
       break;
     }
-    case 'kill': addKillfeed(m); break;
+    case 'kill': { addKillfeed(m); const o = G.others.get(m.vid); if (o) o.alive = false; break; }
     case 'objhp': {
       const o = S.objByKey(gm, m.k);
       if (!o) break;
@@ -651,7 +658,10 @@ function toast(it) {
 }
 
 // ================================================================ ekwipunek
+let ADS_MODE = 'toggle';
+try { ADS_MODE = localStorage.getItem('fortjede-ads') || 'toggle'; } catch { /* brak storage */ }
 function resetWeaponState() {
+  if (ADS_MODE === 'toggle') G.adsHeld = false; // zmiana broni kończy celowanie
   G.reloadT = 0; G.reloading = false; G.useT = 0;
   G.fireCd = Math.max(G.fireCd, 0.25);
   G.dryClicked = false;
@@ -704,6 +714,7 @@ function startReload() {
   if (!it || it.k !== 'w' || G.reloading || G.dead) return;
   const W = WEAPONS[it.type];
   if (it.ammo >= W.mag) return;
+  if (ADS_MODE === 'toggle') G.adsHeld = false;
   G.reloading = true;
   G.reloadT = W.reload;
   FX.sndReloadStart();
@@ -789,11 +800,11 @@ addEventListener('mousedown', (e) => {
     G.mouseDown = true;
     if (G.spectating) nextSpec();
   }
-  if (e.button === 2) G.adsHeld = true;
+  if (e.button === 2) G.adsHeld = ADS_MODE === 'hold' ? true : !G.adsHeld;
 });
 addEventListener('mouseup', (e) => {
   if (e.button === 0) { G.mouseDown = false; G.dryClicked = false; }
-  if (e.button === 2) G.adsHeld = false;
+  if (e.button === 2 && ADS_MODE === 'hold') G.adsHeld = false;
 });
 addEventListener('contextmenu', (e) => e.preventDefault());
 addEventListener('wheel', (e) => {
@@ -924,6 +935,7 @@ function physics(dt) {
       me.vz += (wz * sp - me.vz) * Math.min(1, 2.5 * h);
       me.vy = -7 - (iz > 0 ? 1.5 : 0);
     } else {
+      if (keys.ShiftLeft && iz > 0 && ADS_MODE === 'toggle' && G.adsHeld) G.adsHeld = false; // sprint kończy celowanie
       const sprintKey = keys.ShiftLeft && iz > 0 && !G.ads && G.useT === 0;
       if (sprintKey && me.crouch && me.slideT <= 0) setCrouch(false); // sprint podnosi z kucania
       const sprint = sprintKey && !me.crouch;
@@ -1270,15 +1282,15 @@ function drawMap(ctx, size, cx, cz, span, big) {
   for (const c of G.cards.values()) {
     if (c.carrier || !cardMeshes.has(c.owner)) continue;
     const cx = clampE(mx(c.x)), cz = clampE(mz(c.z)), pulse = 3 + Math.sin(performance.now() / 180) * 3;
-    ctx.beginPath(); ctx.arc(cx, cz, 9 + pulse, 0, Math.PI * 2); ctx.strokeStyle = S.TEAM_COLORS[c.team]; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = S.TEAM_COLORS[c.team]; ctx.fillRect(cx - 5, cz - 7, 10, 14);
+    ctx.beginPath(); ctx.arc(cx, cz, 9 + pulse, 0, Math.PI * 2); ctx.strokeStyle = tColor(c.team); ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = tColor(c.team); ctx.fillRect(cx - 5, cz - 7, 10, 14);
     ctx.fillStyle = '#fff'; ctx.fillRect(cx - 3, cz - 5, 6, 10);
-    ctx.fillStyle = S.TEAM_COLORS[c.team]; ctx.font = 'bold 8px Rubik, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('♻', cx, cz + 0.5);
+    ctx.fillStyle = tColor(c.team); ctx.font = 'bold 8px Rubik, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('♻', cx, cz + 0.5);
   }
   for (const o of G.others.values()) {
     if (!o.alive || o.mode === 4 || !isMate(o.id)) continue;
     ctx.beginPath(); ctx.arc(mx(o.cur.x), mz(o.cur.z), 4.5, 0, Math.PI * 2);
-    ctx.fillStyle = S.TEAM_COLORS[G.myTeam]; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+    ctx.fillStyle = tColor(G.myTeam); ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
   }
   let px = me.x, pz = me.z, pry = me.ry;
   if (G.spectating) { const o = specTarget(); if (o) { px = o.cur.x; pz = o.cur.z; pry = o.ry; } }
@@ -1309,36 +1321,95 @@ function renderHotbar() {
 }
 
 function renderPlayersList() {
+  // nie przebudowuj w trakcie wpisywania nazwy drużyny (straciłbyś fokus)
+  if (document.activeElement && document.activeElement.classList.contains('tname')) { G.boardDirty = true; return; }
   const all = [...G.roster.values()];
   const host = amHost();
-  const canEdit = host && (G.state === 'lobby' || G.state === 'countdown');
-  const hostName = nameOf(G.hostId);
-  $('hostInfo').innerHTML = host ? '👑 Jesteś hostem: ustawiasz drużyny i mecz.' : `👑 Host: <b>${esc(hostName)}</b> — on ustawia drużyny i mecz.`;
-  const opts = (sel) => S.TEAM_NAMES.map((n, i) => `<option value="${i}"${i === sel ? ' selected' : ''}>${i === 0 ? 'Solo' : i + '. ' + n}</option>`).join('');
-  let html = host ? `<div class="teamTools">${[1, 2, 3, 4].map((n) => `<button data-auto="${n}"${canEdit ? '' : ' disabled'}>${n === 1 ? 'Wszyscy solo' : 'Losowo po ' + n}</button>`).join('')}</div>` : '';
-  for (let t = 1; t <= S.TEAM_COUNT + 1; t++) {
-    const team = t > S.TEAM_COUNT ? 0 : t;
-    const members = all.filter((p) => (p.team || 0) === team).sort((a, b) => a.bot - b.bot || a.id - b.id);
-    if (!members.length) continue;
-    html += `<div class="teamGroup" style="--tc:${S.TEAM_COLORS[team]}"><div class="tgHead">${team ? `Drużyna ${team} — ${S.TEAM_NAMES[team]} (${members.length})` : `Solo (${members.length})`}</div>`;
-    for (const p of members) {
-      const icon = p.bot ? '🤖' : p.id === G.hostId ? '👑' : '🙂';
-      const nm = p.id === G.myId ? `<u>${esc(p.name)}</u>` : esc(p.name);
-      html += `<div class="teamRow"><span class="tag">${icon}</span><span class="tname">${nm}</span>`;
-      if (host) {
-        html += `<select data-id="${p.id}"${canEdit ? '' : ' disabled'}>${opts(p.team || 0)}</select>`;
-        if (!p.bot && p.id !== G.myId) html += `<button class="mkhost" data-host="${p.id}" title="Przekaż hosta">👑</button>`;
-      }
-      html += `</div>`;
-    }
-    html += `</div>`;
-  }
-  $('playersList').innerHTML = html;
+  const edit = host && (G.state === 'lobby' || G.state === 'countdown');
+  $('hostInfo').innerHTML = host ? '👑 Jesteś hostem — ustawiasz drużyny i mecz.' : `👑 Host: <b>${esc(nameOf(G.hostId))}</b> — on ustawia drużyny i mecz.`;
+  $('teamHint').textContent = edit ? 'przeciągnij gracza na drużynę albo kliknij gracza, a potem drużynę' : '';
+  $('teamTools').innerHTML = !edit ? '' : `
+    <button data-act="solo">Wszyscy solo</button>
+    <span class="grp">Losowo po <input type="number" id="autoSize" min="2" max="50" value="${G.autoSize || 2}">
+      <label><input type="checkbox" id="autoBots"${G.autoBots ? ' checked' : ''}> z botami</label>
+      <button data-act="auto">Losuj</button></span>
+    <button data-act="fill">Rozdziel boty do drużyn graczy</button>
+    <button data-act="clean">Usuń puste</button>`;
+  const chip = (p) => {
+    const icon = p.bot ? '🤖' : p.id === G.hostId ? '👑' : '🙂';
+    const cls = ['chip', p.id === G.myId ? 'me' : '', edit ? 'can' : '', G.selChip === p.id ? 'sel' : ''].join(' ');
+    const hostBtn = edit && !p.bot && p.id !== G.myId ? `<button class="mkhost" data-host="${p.id}" title="Przekaż hosta">👑</button>` : '';
+    return `<span class="${cls}" data-pid="${p.id}"${edit ? ' draggable="true"' : ''}>${icon} ${esc(p.name)}${hostBtn}</span>`;
+  };
+  const card = (id, members) => {
+    const t = teamOf(id), solo = id === 0;
+    const head = solo ? `<span class="tname" style="pointer-events:none">Solo / bez drużyny</span>`
+      : `<input class="tname" data-rename="${id}" value="${esc(t.name)}" maxlength="20"${edit ? '' : ' disabled'}>`;
+    const del = edit && !solo ? `<button class="tdel" data-del="${id}" title="Usuń drużynę">×</button>` : '';
+    return `<div class="tcard${solo ? ' solo' : ''}${edit && G.selChip != null ? ' pick' : ''}" data-team="${id}" style="--tc:${t.color}">
+      <div class="tchead">${head}<span class="tcount">${members.length}</span>${del}</div>
+      <div class="tchips">${members.map(chip).join('') || '<span class="tempty">pusto</span>'}</div></div>`;
+  };
+  const sortM = (a, b) => a.bot - b.bot || a.id - b.id;
+  let html = '';
+  for (const t of G.teams.values()) html += card(t.id, all.filter((p) => p.team === t.id).sort(sortM));
+  if (edit) html += `<div class="tcard add" data-add="1">+ Nowa drużyna</div>`;
+  html += card(0, all.filter((p) => !p.team || !G.teams.has(p.team)).sort(sortM));
+  $('teamBoard').innerHTML = html;
   const sb = $('startBtn');
   sb.disabled = G.state !== 'lobby' || !host;
   sb.textContent = G.state === 'countdown' ? 'ODLICZANIE…' : G.state !== 'lobby' ? 'TRWA MECZ' : host ? 'START MECZU' : 'CZEKAMY NA HOSTA';
   renderSettings();
 }
+// przenoszenie: przeciągnij i upuść albo kliknij żeton, potem drużynę
+function moveTo(pid, cardEl) {
+  if (!cardEl) return;
+  if (cardEl.dataset.add) net.send({ t: 'teamadd', id: pid });
+  else net.send({ t: 'team', id: pid, team: +cardEl.dataset.team });
+}
+const board = $('teamBoard');
+board.addEventListener('dragstart', (e) => { const c = e.target.closest('.chip.can'); if (c) { e.dataTransfer.setData('text/plain', c.dataset.pid); e.dataTransfer.effectAllowed = 'move'; } });
+board.addEventListener('dragover', (e) => { const t = e.target.closest('.tcard'); if (t) { e.preventDefault(); board.querySelectorAll('.drop').forEach((x) => x !== t && x.classList.remove('drop')); t.classList.add('drop'); } });
+board.addEventListener('dragleave', (e) => { const t = e.target.closest('.tcard'); if (t && !t.contains(e.relatedTarget)) t.classList.remove('drop'); });
+board.addEventListener('drop', (e) => {
+  e.preventDefault();
+  board.querySelectorAll('.drop').forEach((x) => x.classList.remove('drop'));
+  const pid = +e.dataTransfer.getData('text/plain');
+  if (pid) moveTo(pid, e.target.closest('.tcard'));
+});
+board.addEventListener('click', (e) => {
+  if (!amHost()) return;
+  const hb = e.target.closest('button[data-host]');
+  if (hb) { e.stopPropagation(); net.send({ t: 'host', id: +hb.dataset.host }); return; }
+  const del = e.target.closest('button[data-del]');
+  if (del) { net.send({ t: 'teamdel', id: +del.dataset.del }); return; }
+  if (e.target.closest('input')) return;
+  const c = e.target.closest('.chip.can');
+  if (c) { const id = +c.dataset.pid; G.selChip = G.selChip === id ? null : id; renderPlayersList(); return; }
+  const card = e.target.closest('.tcard');
+  if (card && (card.dataset.add || G.selChip != null)) {
+    if (G.selChip != null) { moveTo(G.selChip, card); G.selChip = null; }
+    else net.send({ t: 'teamadd' });
+  }
+});
+board.addEventListener('change', (e) => {
+  const r = e.target.closest('input[data-rename]');
+  if (r) net.send({ t: 'teamrename', id: +r.dataset.rename, name: r.value });
+});
+board.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('input[data-rename]')) e.target.blur(); });
+board.addEventListener('focusout', () => { if (G.boardDirty) { G.boardDirty = false; setTimeout(renderPlayersList, 0); } });
+$('teamTools').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-act]');
+  if (!b) return;
+  const act = b.dataset.act;
+  if (act === 'solo') net.send({ t: 'teamsauto', size: 1, bots: true });
+  if (act === 'auto') {
+    G.autoSize = Math.max(2, +$('autoSize').value || 2); G.autoBots = $('autoBots').checked;
+    net.send({ t: 'teamsauto', size: G.autoSize, bots: G.autoBots });
+  }
+  if (act === 'fill') net.send({ t: 'botsfill' });
+  if (act === 'clean') net.send({ t: 'teamclean' });
+});
 function renderSettings() {
   const box = $('settingsBox');
   if (!box) return;
@@ -1358,17 +1429,6 @@ $('settingsBox').addEventListener('change', (e) => {
   const v = el.type === 'checkbox' ? el.checked : el.value;
   net.send({ t: 'settings', s: { [el.dataset.set]: v } });
 });
-$('playersList').addEventListener('change', (e) => {
-  const sel = e.target.closest('select[data-id]');
-  if (sel) net.send({ t: 'team', id: +sel.dataset.id, team: +sel.value });
-});
-$('playersList').addEventListener('click', (e) => {
-  const b = e.target.closest('button[data-auto]');
-  if (b) net.send({ t: 'teamsauto', size: +b.dataset.auto });
-  const h = e.target.closest('button[data-host]');
-  if (h) net.send({ t: 'host', id: +h.dataset.host });
-});
-
 function memberStatus(p) {
   if (p.id === G.myId) return G.dead ? (G.cards.get(G.myId) ? '🃏 karta' : '✖ nie żyje') : '✔ żyje';
   const o = G.others.get(p.id);
@@ -1381,11 +1441,11 @@ function renderScoreboard() {
   const all = [...G.roster.values()];
   let html = `<h3>Drużyny</h3>`;
   const groups = [];
-  for (let t = 1; t <= S.TEAM_COUNT; t++) { const m = all.filter((p) => p.team === t); if (m.length) groups.push([t, m]); }
+  for (const t of G.teams.keys()) { const m = all.filter((p) => p.team === t); if (m.length) groups.push([t, m]); }
   for (const p of all.filter((p) => !p.team)) groups.push([0, [p]]);
   for (const [t, members] of groups) {
     const alive = members.some((p) => (p.id === G.myId ? !G.dead : (G.others.get(p.id) || {}).alive));
-    html += `<div class="sbTeam${alive || G.state === 'lobby' ? '' : ' out'}" style="--tc:${S.TEAM_COLORS[t]}"><div class="sbHead">${t ? `Drużyna ${t} — ${S.TEAM_NAMES[t]}` : 'Solo'}</div>`;
+    html += `<div class="sbTeam${alive || G.state === 'lobby' ? '' : ' out'}" style="--tc:${tColor(t)}"><div class="sbHead">${t ? esc(tName(t)) : 'Solo'}</div>`;
     for (const p of members) html += `<div class="sbRow"><span class="n">${p.bot ? '🤖 ' : ''}${p.id === G.myId ? '<u>' + esc(p.name) + '</u>' : esc(p.name)}</span><span class="st">${memberStatus(p)}</span></div>`;
     html += `</div>`;
   }
@@ -1397,7 +1457,7 @@ function renderTeamPanel() {
   if (G.myTeam <= 0) { el.innerHTML = ''; return; }
   const mates = [...G.roster.values()].filter((p) => p.team === G.myTeam && p.id !== G.myId);
   const nowT = performance.now();
-  el.innerHTML = `<div class="tpHead" style="color:${S.TEAM_COLORS[G.myTeam]}">Drużyna ${G.myTeam} — ${S.TEAM_NAMES[G.myTeam]}</div>` + mates.map((p) => {
+  el.innerHTML = `<div class="tpHead" style="color:${tColor(G.myTeam)}">Drużyna: ${esc(tName(G.myTeam))}</div>` + mates.map((p) => {
     const o = G.others.get(p.id);
     const card = G.cards.get(p.id);
     let status;
@@ -1407,7 +1467,7 @@ function renderTeamPanel() {
       status = card.carrier ? `<span class="tpCard">🃏 karta niesie: ${esc(nameOf(card.carrier))}</span>`
         : `<span class="tpCard">🃏 karta czeka: ${Math.max(0, Math.ceil((card.until - nowT) / 1000))} s</span>`;
     } else status = G.state === 'match' ? '<span class="tpOut">✖ odpadł</span>' : '';
-    return `<div class="tpRow"><span class="tdot" style="background:${S.TEAM_COLORS[G.myTeam]}"></span><b>${esc(p.name)}</b>${status}</div>`;
+    return `<div class="tpRow"><span class="tdot" style="background:${tColor(G.myTeam)}"></span><b>${esc(p.name)}</b>${status}</div>`;
   }).join('');
 }
 
@@ -1519,7 +1579,7 @@ function updateHUD(dt) {
           : `<div class="pcard"><div><div class="pname" style="color:#4cf2ff">Odrodź: ${esc(carrying().map((c) => nameOf(c.owner)).join(', '))}</div><div class="pstats">Przytrzymaj E przez ${G.settings.rebootTime} s</div></div></div><div class="pkey"><kbd>E</kbd>Przytrzymaj</div>`;
         hudCache.prompt = 'reboot' + cd;
       } else if (inter.kind === 'card') {
-        const col = S.TEAM_COLORS[inter.c.team];
+        const col = tColor(inter.c.team);
         p.style.setProperty('--rc', col);
         p.innerHTML = `<div class="pcard"><div><div class="pname" style="color:${col}">Karta: ${esc(nameOf(inter.c.owner))}</div><div class="pstats">Zanieś ją do Punktu Odrodzenia</div></div></div><div class="pkey"><kbd>E</kbd>Podnieś kartę</div>`;
       } else if (inter.kind === 'chest') {
@@ -1614,7 +1674,9 @@ function update(dt) {
     const iv = 1 / Math.max(dt, 1e-3), kv = Math.min(1, dt * 10);
     o.vx += ((o.cur.x - px) * iv - o.vx) * kv; o.vy += ((o.cur.y - py) * iv - o.vy) * kv; o.vz += ((o.cur.z - pz) * iv - o.vz) * kv;
     o.ry = lerpAngle(o.ry, o.tRy, k);
-    const vis = o.alive && o.mode !== 3 && o.mode !== 4;
+    const cull = scopedNow ? 520 : 220;
+    const far = !isMate(o.id) && camera.position.distanceToSquared(o.cur) > cull * cull; // nie rysuj bardzo dalekich (w lunecie — tak)
+    const vis = o.alive && o.mode !== 3 && o.mode !== 4 && !far;
     o.av.root.visible = vis;
     if (!vis) continue;
     o.av.root.position.copy(o.cur);
@@ -1726,6 +1788,11 @@ $('resumeBtn').onclick = lock;
 $('startBtn').onclick = () => { net.send({ t: 'start' }); lock(); };
 $('nick').focus();
 $('quality').value = QKEY;
+$('adsMode').value = ADS_MODE;
+$('adsMode').addEventListener('change', (e) => {
+  ADS_MODE = e.target.value; G.adsHeld = false;
+  try { localStorage.setItem('fortjede-ads', ADS_MODE); } catch { /* brak storage */ }
+});
 $('quality').addEventListener('change', (e) => {
   QKEY = e.target.value; QUAL = VIS.QUALITY[QKEY];
   try { localStorage.setItem('fortjede-q', QKEY); } catch { /* brak storage */ }

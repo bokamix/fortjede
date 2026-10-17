@@ -51,7 +51,7 @@ Wyślij kolegom adres `https://….ngrok-free.app`. Na darmowym ngroku przy pier
 
 ## Drużyny i odradzanie
 
-- W lobby (Esc) każdy gracz ma listę **Solo / Drużyna 1–6**. Ustawiacie ją, jak wam pasuje: każdy może przestawić każdego. Są też przyciski „Wszyscy solo” i „Losowo po 2/3/4”.
+- W lobby (Esc) host układa drużyny na tablicy: **dowolnie wiele drużyn** („+ Nowa drużyna”, × usuwa drużynę, a nazwę zmienia się kliknięciem). Gracza albo bota przenosi się, przeciągając jego żeton na drużynę, albo klikając żeton, a potem drużynę. Szybkie akcje: „Wszyscy solo”, „Losowo po N” (z botami albo bez), „Rozdziel boty do drużyn graczy”, „Usuń puste”.
 - Kolegów z drużyny nie da się zranić. Ich nicki są w kolorze drużyny i widać je przez ściany, a na minimapie mają kropki. Panel z ich zdrowiem jest w lewym dolnym rogu.
 - Po śmierci zostaje twoja **karta odrodzenia**, którą widzą tylko koledzy. Leży 90 s i przepada, jeśli nikt jej nie podniesie.
 - Kolega podnosi kartę (`E`), zanosi ją do **♻ Punktu Odrodzenia** (furgonetka z niebieską wiązką światła, jedna na mapie, zaznaczona na minimapie) i przytrzymuje `E` przez 4 s. Odrodzony gracz spada na lotni nad punktem z pistoletem.
@@ -65,7 +65,7 @@ Wyślij kolegom adres `https://….ngrok-free.app`. Na darmowym ngroku przy pier
 |---|---|
 | WSAD / Shift | ruch / sprint |
 | Spacja | skok, wyskok z autobusu, lotnia |
-| LPM / PPM | strzał (albo użycie apteczki) / celowanie (snajperka ma lunetę) |
+| LPM / PPM | strzał (albo użycie apteczki) / celowanie: klik włącza i wyłącza (w menu można zmienić na przytrzymanie), snajperka ma lunetę |
 | 1–5, kółko | sloty ekwipunku |
 | R | przeładowanie |
 | E | podnieś / otwórz skrzynię |

@@ -59,9 +59,15 @@ export const STORM_PHASES = [
 export const STORM_START_R = 260;
 
 // drużyny i odradzanie (karta + punkt odrodzenia)
-export const TEAM_COUNT = 6;
-export const TEAM_COLORS = ['#b0b0b0', '#3a86ff', '#ff4d6d', '#2ec27e', '#ffbe0b', '#9b5de5', '#ff8c42'];
-export const TEAM_NAMES = ['Solo', 'Niebiescy', 'Czerwoni', 'Zieloni', 'Żółci', 'Fioletowi', 'Pomarańczowi'];
+// drużyny tworzy host (dowolnie wiele); n-ta drużyna dostaje kolor i nazwę z listy, potem kolor wyliczony
+export const SOLO_COLOR = '#b0b0b0';
+const TEAM_PALETTE = ['#3a86ff', '#ff4d6d', '#2ec27e', '#ffbe0b', '#9b5de5', '#ff8c42', '#ff6ec7', '#00c2d1', '#c08552', '#8d99ae'];
+const TEAM_DEFAULT_NAMES = ['Niebiescy', 'Czerwoni', 'Zieloni', 'Żółci', 'Fioletowi', 'Pomarańczowi', 'Różowi', 'Turkusowi', 'Brązowi', 'Szarzy'];
+export function teamDefaults(n) { // n = 0, 1, 2… kolejna utworzona drużyna
+  if (n < TEAM_PALETTE.length) return { name: TEAM_DEFAULT_NAMES[n], color: TEAM_PALETTE[n] };
+  const hue = Math.round((n * 137.5) % 360);
+  return { name: `Drużyna ${n + 1}`, color: `hsl(${hue}, 75%, 60%)` };
+}
 export const CARD_TIME = 90;        // s — tyle karta leży na ziemi, zanim przepadnie
 export const REBOOT_TIME = 4;       // s — przytrzymanie E przy punkcie odrodzenia
 export const REBOOT_COOLDOWN = 15;  // s — przerwa między odrodzeniami
@@ -70,7 +76,7 @@ export const sameTeam = (a, b) => !!a && !!b && a !== b && a.team > 0 && a.team 
 
 // ustawienia meczu (zmienia host w lobby)
 export const SETTINGS_SCHEMA = [
-  { key: 'bots', label: 'Liczba botów', type: 'int', min: 0, max: 30, def: 8 },
+  { key: 'bots', label: 'Liczba botów (max 99)', type: 'int', min: 0, max: 99, def: 8 },
   { key: 'botLevel', label: 'Poziom botów', type: 'select', opts: [['easy', 'Łatwe'], ['normal', 'Normalne'], ['hard', 'Trudne']], def: 'normal' },
   { key: 'reboot', label: 'Odradzanie (karty)', type: 'bool', def: true },
   { key: 'cardTime', label: 'Czas karty na ziemi (s)', type: 'int', min: 10, max: 300, def: 90 },

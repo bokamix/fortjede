@@ -65,16 +65,26 @@
         <div id="connStatus"></div>
       </div>
       <div id="lobbyBox" class="hidden">
-        <button id="resumeBtn">KLIKNIJ ABY GRAĆ</button>
+        <div class="lobbyTop">
+          <button id="resumeBtn">KLIKNIJ ABY GRAĆ</button>
+          <button id="startBtn">START MECZU</button>
+        </div>
         <div id="hostInfo"></div>
-        <div id="startBox"><button id="startBtn">START MECZU</button></div>
         <div class="lobbyCols">
-          <div class="lobbyCol"><div class="colHead">Drużyny</div><div id="playersList"></div></div>
-          <div class="lobbyCol"><div class="colHead">Ustawienia meczu</div><div id="settingsBox"></div></div>
+          <section class="lobbyCol">
+            <div class="colHead">Drużyny <span class="hint" id="teamHint"></span></div>
+            <div id="teamTools"></div>
+            <div id="teamBoard"></div>
+          </section>
+          <section class="lobbyCol">
+            <div class="colHead">Ustawienia meczu</div>
+            <div id="settingsBox"></div>
+          </section>
         </div>
       </div>
-      <div id="qualityBox">Grafika
-        <select id="quality"><option value="low">Niska (słabszy laptop)</option><option value="medium">Średnia</option><option value="high">Wysoka</option></select>
+      <div id="qualityBox">
+        <label>Grafika <select id="quality"><option value="low">Niska (słabszy laptop)</option><option value="medium">Średnia</option><option value="high">Wysoka</option></select></label>
+        <label>Celowanie (PPM) <select id="adsMode"><option value="toggle">Kliknięcie włącza/wyłącza</option><option value="hold">Przytrzymanie</option></select></label>
       </div>
       <div class="help">
         <div><kbd>WSAD</kbd> ruch</div><div><kbd>Shift</kbd> sprint</div>

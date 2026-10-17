@@ -9,7 +9,7 @@ import {
   GameMap, WEAPONS, PICKAXE, BOT_WEAPONS, STORM_PHASES, STORM_START_R, BUS_TIME, MODES, MODE_CODE,
   GRAVITY, JUMP_V, randomItem, sanitizeItem, applyUse, busPos, findSpawn,
   collideCharacter, ceilingClamp, groundAt, raycastMap, OBJ_HP, STRUCT_DMG, objByKey,
-  TEAM_COUNT, REBOOT_R, sameTeam, DEFAULT_SETTINGS, sanitizeSettings,
+  REBOOT_R, sameTeam, DEFAULT_SETTINGS, sanitizeSettings, teamDefaults,
 } from './public/shared.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -57,6 +57,7 @@ const game = {
   objHp: new Map(), destroyed: new Set(),
   cards: new Map(), rebooting: new Map(), rebootReadyAt: 0, startedTeams: 0,
   settings: { ...DEFAULT_SETTINGS }, hostId: null,
+  teams: new Map(), nextTeam: 1, teamSeq: 0,
 };
 const SET = () => game.settings;
 const BOT_LEVEL = { easy: { acc: 0.6, dmg: 0.7, react: 1.6 }, normal: { acc: 1, dmg: 1, react: 1 }, hard: { acc: 1.3, dmg: 1.25, react: 0.6 } };
@@ -64,7 +65,10 @@ const BOT_LEVEL = { easy: { acc: 0.6, dmg: 0.7, react: 1.6 }, normal: { acc: 1, 
 const BOT_NAMES = ['Bocik Zenek', 'Bot Grażyna', 'Mirek_AI', 'Kapitan Kampa', 'NoScope Norbert', 'Jarek Jumper', 'Tytus Tarcza',
   'Bambik', 'Default Dawid', 'Pan Kilof', 'Wiesia Snajper', 'Bot Bogdan', 'Lama Lucek', 'Zbyszek Zip', 'Halinka 360',
   'Krzysiek Krzak', 'Turbo Teresa', 'Sweaty Stefan', 'Bot Bożydar', 'Mietek Medkit', 'Gienek Glider', 'Ula Ultra',
-  'Ryszard Rush', 'Fanka Frytek', 'Edek Eliminator', 'Pani Pompa', 'Kazik Kampa', 'Lotnia Lucyna', 'Bot Bartek', 'Szymek Szybki'];
+  'Ryszard Rush', 'Fanka Frytek', 'Edek Eliminator', 'Pani Pompa', 'Kazik Kampa', 'Lotnia Lucyna', 'Bot Bartek', 'Szymek Szybki',
+  // + kilkaset kombinacji, żeby starczyło na 99 botów bez powtórek
+  ...['Szybki', 'Cichy', 'Wściekły', 'Leniwy', 'Sprytny', 'Kampiący', 'Turbo', 'Mega', 'Złoty', 'Dziki', 'Śpiący', 'Głodny', 'Pancerny', 'Skaczący', 'Szalony', 'Tajny']
+    .flatMap((a) => ['Zenek', 'Mirek', 'Gienek', 'Kazik', 'Rysiek', 'Edek', 'Bogdan', 'Stefan', 'Jarek', 'Heniek', 'Waldek', 'Janusz', 'Franek', 'Józek', 'Krysia', 'Bożena'].map((f) => `${a} ${f}`))];
 
 const r2 = (v) => Math.round(v * 100) / 100;
 const now = () => Date.now();
@@ -76,7 +80,7 @@ function broadcast(msg, except) {
 }
 function humans() { return [...ents.values()].filter((e) => !e.bot); }
 function rosterMsg() {
-  return { t: 'roster', list: [...ents.values()].map((e) => ({ id: e.id, name: e.name, bot: e.bot, team: e.team })), host: game.hostId };
+  return { t: 'roster', list: [...ents.values()].map((e) => ({ id: e.id, name: e.name, bot: e.bot, team: e.team })), host: game.hostId, teams: [...game.teams.values()] };
 }
 
 function newEnt(props) {
@@ -523,6 +527,14 @@ function botShoot(b, t, d, W) {
 const wss = new WebSocketServer({ server });
 
 const isHost = (e) => e && e.id === game.hostId;
+const lobbyHost = (e) => isHost(e) && (game.state === 'lobby' || game.state === 'countdown');
+function addTeam() {
+  const d = teamDefaults(game.teamSeq++);
+  const t = { id: game.nextTeam++, name: d.name, color: d.color };
+  game.teams.set(t.id, t);
+  return t;
+}
+addTeam(); addTeam(); // na start dwie puste drużyny
 function pickHost() {
   const hs = humans();
   const local = hs.find((h) => h.local);
@@ -652,18 +664,66 @@ function handle(me, m) {
       break;
     }
     case 'team': {
-      if (!isHost(me) || (game.state !== 'lobby' && game.state !== 'countdown')) return;
+      if (!lobbyHost(me)) return;
       const tgt = ents.get(m.id);
-      if (!tgt) return;
-      tgt.team = Math.max(0, Math.min(TEAM_COUNT, m.team | 0));
+      const team = m.team | 0;
+      if (!tgt || (team !== 0 && !game.teams.has(team))) return;
+      tgt.team = team;
       broadcast(rosterMsg());
       break;
     }
-    case 'teamsauto': {
-      if (!isHost(me) || (game.state !== 'lobby' && game.state !== 'countdown')) return;
-      const size = Math.max(1, Math.min(4, m.size | 0));
-      const hs = [...ents.values()].filter((e) => !e.bot || !m.humansOnly).sort(() => Math.random() - 0.5);
-      hs.forEach((h, i) => { const tn = 1 + Math.floor(i / size); h.team = size === 1 || tn > TEAM_COUNT ? 0 : tn; });
+    case 'teamadd': {
+      if (!lobbyHost(me)) return;
+      const t = addTeam();
+      const tgt = ents.get(m.id);
+      if (tgt) tgt.team = t.id;
+      broadcast(rosterMsg());
+      break;
+    }
+    case 'teamdel': {
+      if (!lobbyHost(me) || !game.teams.has(m.id)) return;
+      for (const e of ents.values()) if (e.team === m.id) e.team = 0;
+      game.teams.delete(m.id);
+      broadcast(rosterMsg());
+      break;
+    }
+    case 'teamrename': {
+      const t = game.teams.get(m.id);
+      if (!lobbyHost(me) || !t) return;
+      t.name = String(m.name || '').replace(/[<>&"']/g, '').trim().slice(0, 20) || t.name;
+      broadcast(rosterMsg());
+      break;
+    }
+    case 'teamclean': { // usuń puste drużyny
+      if (!lobbyHost(me)) return;
+      for (const id of [...game.teams.keys()]) if (![...ents.values()].some((e) => e.team === id)) game.teams.delete(id);
+      broadcast(rosterMsg());
+      break;
+    }
+    case 'teamsauto': { // losowe drużyny po N osób (z botami albo bez)
+      if (!lobbyHost(me)) return;
+      const size = Math.max(1, Math.min(50, m.size | 0));
+      const pool = [...ents.values()].filter((e) => m.bots || !e.bot).sort(() => Math.random() - 0.5);
+      for (const e of ents.values()) e.team = 0;
+      game.teams.clear(); game.teamSeq = 0;
+      if (size > 1) {
+        const n = Math.ceil(pool.length / size);
+        const ts = Array.from({ length: n }, () => addTeam());
+        pool.forEach((e, i) => { e.team = ts[Math.floor(i / size)].id; });
+      }
+      broadcast(rosterMsg());
+      break;
+    }
+    case 'botsfill': { // rozdziel boty solo po równo do drużyn (najpierw tych z graczami)
+      if (!lobbyHost(me)) return;
+      const count = (id) => [...ents.values()].filter((e) => e.team === id).length;
+      let targets = [...game.teams.keys()].filter((id) => [...ents.values()].some((e) => e.team === id && !e.bot));
+      if (!targets.length) targets = [...game.teams.keys()];
+      if (!targets.length) return;
+      for (const b of [...ents.values()].filter((e) => e.bot && !e.team)) {
+        targets.sort((a, c) => count(a) - count(c));
+        b.team = targets[0];
+      }
       broadcast(rosterMsg());
       break;
     }
@@ -757,22 +817,30 @@ setInterval(() => {
     if (game.state === 'ended' && t >= game.endAt) toLobby();
   }
 
-  // snapshot
-  const ps = [];
+  // snapshot — dalekie postacie (>140 m) wysyłane rzadziej (co 4. tik), żeby oszczędzać łącze przy wielu botach
+  game.tickNo = (game.tickNo || 0) + 1;
+  const rows = [];
   for (const e of ents.values()) {
-    if (!e.alive && !e.inMatch) continue;
-    ps.push([e.id, r2(e.x), r2(e.y), r2(e.z), r2(e.ry), r2(e.rx), e.alive ? MODE_CODE[e.mode] ?? 0 : 4, e.bot ? e.w + e.rar : e.w, e.alive ? 1 : 0, e.mv ? 1 : 0, e.cr ? 1 : 0, Math.max(0, Math.round(e.hp)), Math.round(e.sh)]);
+    if (!e.alive) continue; // martwych nie wysyłamy (klient chowa ich po komunikacie 'kill')
+    rows.push({ e, json: JSON.stringify([e.id, r2(e.x), r2(e.y), r2(e.z), r2(e.ry), r2(e.rx), e.alive ? MODE_CODE[e.mode] ?? 0 : 4, e.bot ? e.w + e.rar : e.w, e.alive ? 1 : 0, e.mv ? 1 : 0, e.cr ? 1 : 0, Math.max(0, Math.round(e.hp)), Math.round(e.sh)]) });
   }
   const s = game.stormNow;
-  const common = JSON.stringify({
-    gs: game.state, ps, a: game.state === 'match' || game.state === 'ended' ? aliveInMatch().length : humans().length,
+  const meta = JSON.stringify({
+    gs: game.state, a: game.state === 'match' || game.state === 'ended' ? aliveInMatch().length : humans().length,
     bt: game.bus ? r2(game.busT) : null,
     cd: game.state === 'countdown' ? Math.ceil((game.countdownEnd - t) / 1000) : 0,
     st: s ? { x: r2(s.x), z: r2(s.z), r: r2(s.r), nx: r2(s.nx), nz: r2(s.nz), nr: r2(s.nr), shr: s.shr, tm: Math.ceil(s.tm), dmg: s.dmg } : null,
-  });
+  }).slice(0, -1);
   for (const h of ents.values()) {
     if (h.bot) continue;
-    send(h, `{"t":"s","me":[${Math.max(0, Math.round(h.hp))},${Math.round(h.sh)},${h.kills},${h.alive ? 1 : 0}],"c":${common}}`);
+    const near = h.alive && h.mode !== 'bus' && h.mode !== 'sky'; // z autobusu i po śmierci widać wszystko na bieżąco
+    const parts = [];
+    for (const r of rows) {
+      const e = r.e;
+      if (near && e !== h && !sameTeam(e, h) && (game.tickNo + e.id) % 4 !== 0 && Math.hypot(e.x - h.x, e.z - h.z) > 140) continue;
+      parts.push(r.json);
+    }
+    send(h, `{"t":"s","me":[${Math.max(0, Math.round(h.hp))},${Math.round(h.sh)},${h.kills},${h.alive ? 1 : 0}],"c":${meta},"ps":[${parts.join(',')}]}}`);
   }
 }, TICK);
 
