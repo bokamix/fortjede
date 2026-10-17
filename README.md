@@ -88,6 +88,17 @@ Inny port: `PORT=8080 npm start`. Można otworzyć dwie karty: w jednej utworzy�
 | W + Spacja przy krawędzi | wspinaczka / przeskok |
 | M | duża mapa |
 
+### Telefon (iPhone, Android)
+
+Na telefonie gra sama włącza sterowanie dotykiem (wymuszenie do testów na komputerze: `?touch=1`, wyłączenie: `?touch=0`). Gra się poziomo:
+
+- lewy kciuk: joystick (pojawia się tam, gdzie dotkniesz); pchnięcie do przodu za obręcz to sprint,
+- prawy kciuk: przeciąganie gdziekolwiek obraca kamerą; przeciąganie po przycisku strzału też celuje,
+- przyciski: FIRE (drugi, mniejszy po lewej), AIM, JUMP, CROUCH, RELOAD, a obok łupu, skrzyni lub karty pojawia się PICK UP / OPEN (przytrzymanie przy furgonetce = reboot),
+- stuknięcie w slot zmienia przedmiot, w minimapę otwiera mapę, w liczniki 👤 💀 pokazuje tabelę drużyn, ❚❚ to menu.
+
+Na iPhonie najlepiej dodać stronę do ekranu początkowego (Udostępnij → Do ekranu początkowego): gra uruchamia się wtedy na pełnym ekranie, bez pasków Safari. Domyślna jakość grafiki na telefonie to Low. Jeśli nie ma dźwięku, sprawdź przełącznik wyciszenia z boku iPhone'a.
+
 ## Zawartość
 
 - Bronie: pistolet, pistolet maszynowy, karabin szturmowy, strzelba, snajperka. Każda w 5 rzadkościach (szara → złota), a pusty slot daje kilof.
@@ -108,7 +119,7 @@ W menu (Esc) jest przełącznik **Grafika: Niska / Średnia / Wysoka**, a wybór
 - `public/host-worker.js`: Web Worker hosta, który uruchamia `sim.js`
 - `public/net.js`: sieć P2P (WebRTC/PeerJS): tworzenie pokoju, dołączanie, ponowne łączenie i przejmowanie pokoju
 - `public/shared.js`: kod wspólny dla symulacji i klienta (mapa, kolizje, raycast, bronie)
-- `public/game.js`: klient (sterowanie, HUD, kamera)
+- `public/game.js`: klient (sterowanie myszą i dotykiem, HUD, kamera)
 - `public/visuals.js`: oprawa graficzna (niebo, woda, teren, faktury, roślinność, postprocessing)
 - `public/avatar.js`: postacie i ich animacje
 - `public/gunfx.js`: modele broni, ikony, dźwięki i efekty strzałów

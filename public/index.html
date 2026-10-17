@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <title>Fortjede</title>
+  <meta name="theme-color" content="#101434">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Fortjede">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -54,6 +61,21 @@
     <div id="markers"></div>
     <div id="scoreboard" class="hidden"></div>
   </div>
+
+  <div id="tzone"></div>
+  <div id="tctl">
+    <div id="joy"><i></i></div>
+    <button id="tPause" class="tb" aria-label="Menu"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+    <button id="tFire2" class="tb fire"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="none" stroke-width="2.4"/><circle cx="12" cy="12" r="2"/></svg></button>
+    <button id="tFire" class="tb fire"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="none" stroke-width="2.4"/><circle cx="12" cy="12" r="2"/></svg><span id="tFireL">FIRE</span><b id="tAmmo"></b></button>
+    <button id="tAim" class="tb"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke-width="2"/><path d="M12 2v6M12 16v6M2 12h6M16 12h6" fill="none" stroke-width="2"/></svg><span>AIM</span></button>
+    <button id="tReload" class="tb"><svg viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.05-4.95" fill="none" stroke-width="2.4" stroke-linecap="round"/><path d="M20 4v5h-5z"/></svg><span>RELOAD</span></button>
+    <button id="tJump" class="tb"><svg viewBox="0 0 24 24"><path d="M5 15l7-7 7 7" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="tJumpL">JUMP</span></button>
+    <button id="tCrouch" class="tb"><svg viewBox="0 0 24 24"><path d="M5 9l7 7 7-7" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>CROUCH</span></button>
+    <button id="tUse" class="tb use"><svg viewBox="0 0 24 24"><path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V12V4.5a1.5 1.5 0 0 1 3 0V12V6a1.5 1.5 0 0 1 3 0v7.5a6.5 6.5 0 0 1-6.5 6.5h-.3a5.5 5.5 0 0 1-4.6-2.5L3.6 14a1.5 1.5 0 0 1 2.4-1.8z"/></svg><span id="tUseL">PICK UP</span></button>
+    <button id="tDrop" class="tb"><svg viewBox="0 0 24 24"><path d="M12 4v10M7 10l5 5 5-5M5 20h14" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>DROP</span></button>
+  </div>
+  <div id="rotate"><div class="rIcon">📱</div><b>Rotate your phone</b><span>Fortjede is played in landscape</span></div>
 
   <div id="fullmap" class="hidden"><canvas id="bigmap" width="640" height="640"></canvas></div>
 
@@ -106,18 +128,32 @@
           </section>
           <section class="pane" data-pane="prefs">
             <div class="prefs">
-              <div class="pref"><div class="prefLabel">Graphics quality<small>Use Low on slower laptops</small></div>
+              <div class="pref"><div class="prefLabel">Graphics quality<small class="deskOnly">Use Low on slower laptops</small><small class="touchOnly">Low runs best on phones</small></div>
                 <div class="seg" id="qualitySeg"><button data-v="low">Low</button><button data-v="medium">Medium</button><button data-v="high">High</button></div></div>
-              <div class="pref"><div class="prefLabel">Aim (right mouse)<small>Click toggles aim, or hold to aim</small></div>
+              <div class="pref deskOnly"><div class="prefLabel">Aim (right mouse)<small>Click toggles aim, or hold to aim</small></div>
                 <div class="seg" id="adsSeg"><button data-v="toggle">Click to toggle</button><button data-v="hold">Hold</button></div></div>
-              <div class="pref"><div class="prefLabel">Mouse sensitivity<small id="sensVal"></small></div>
+              <div class="pref"><div class="prefLabel"><span class="deskOnly">Mouse sensitivity</span><span class="touchOnly">Look sensitivity</span><small id="sensVal"></small></div>
                 <input type="range" id="sens" min="0.3" max="3" step="0.05"></div>
               <div class="pref"><div class="prefLabel">Volume<small id="volVal"></small></div>
                 <input type="range" id="vol" min="0" max="1" step="0.05"></div>
             </div>
           </section>
           <section class="pane" data-pane="controls">
-            <div class="keys">
+            <div class="keys touchOnly">
+              <div><kbd>Left thumb</kbd><span>Move (push past the ring to sprint)</span></div>
+              <div><kbd>Right thumb</kbd><span>Drag anywhere to look around</span></div>
+              <div><kbd>FIRE</kbd><span>Shoot / use item (drag it to aim while shooting)</span></div>
+              <div><kbd>AIM</kbd><span>Aim on / off (sniper: scope)</span></div>
+              <div><kbd>JUMP</kbd><span>Jump · leave the bus · open glider · vault</span></div>
+              <div><kbd>CROUCH</kbd><span>Crouch (while sprinting: slide)</span></div>
+              <div><kbd>RELOAD</kbd><span>Reload</span></div>
+              <div><kbd>PICK UP</kbd><span>Shows up next to loot, chests and cards · hold to reboot</span></div>
+              <div><kbd>Slots</kbd><span>Tap a slot to switch items · DROP drops it</span></div>
+              <div><kbd>Minimap</kbd><span>Tap for the full map</span></div>
+              <div><kbd>👤 💀</kbd><span>Tap for the teams scoreboard</span></div>
+              <div><kbd>❚❚</kbd><span>Menu</span></div>
+            </div>
+            <div class="keys deskOnly">
               <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Move</span></div>
               <div><kbd>Shift</kbd><span>Sprint</span></div>
               <div><kbd>Space</kbd><span>Jump · leave the bus · open glider</span></div>

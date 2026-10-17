@@ -319,3 +319,108 @@ kbd { display: inline-block; min-width: 24px; padding: 3px 7px; border-radius: 6
 .panel:has(> #joinBox:not(.hidden)) { width: min(460px, 100%); }
 .panel:has(> #joinBox:not(.hidden)) .mHead { justify-content: center; text-align: center; margin-bottom: 4px; }
 .panel:has(> #joinBox:not(.hidden)) #lobbyStatus { display: none; }
+
+/* ---------- telefon: sterowanie dotykiem ---------- */
+body:not(.touch) .touchOnly, body.touch .deskOnly { display: none !important; }
+body.touch { --sl: env(safe-area-inset-left, 0px); --sr: env(safe-area-inset-right, 0px); --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px); -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+body.touch canvas#game { touch-action: none; }
+body.touch button { touch-action: manipulation; }
+body.touch button:hover { filter: none; }
+#tzone, #tctl, #rotate { display: none; }
+body.touch.playing #tzone { display: block; position: fixed; inset: 0; z-index: 9; touch-action: none; }
+body.touch.playing #tctl { display: block; position: fixed; inset: 0; z-index: 11; pointer-events: none; }
+
+#tctl .tb { position: absolute; pointer-events: auto; touch-action: none; width: 56px; height: 56px; padding: 0; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; background: rgba(12, 16, 44, .42); border: 2px solid rgba(255,255,255,.5); box-shadow: 0 3px 10px rgba(0,0,0,.3); color: #fff; font-size: 8.5px; font-weight: 800; letter-spacing: .4px; line-height: 1; transition: opacity .15s, transform .08s; }
+#tctl .tb svg { width: 22px; height: 22px; fill: #fff; stroke: #fff; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+#tctl .tb:active { transform: scale(.92); background: rgba(255,255,255,.28); }
+#tctl .tb.hide { opacity: 0; pointer-events: none; transform: scale(.8); }
+#tctl .tb.on { background: rgba(255, 216, 74, .85); border-color: #ffe98a; color: #2a1d00; }
+#tctl .tb.on svg { fill: #2a1d00; stroke: #2a1d00; filter: none; }
+
+#tctl #tFire { width: 88px; height: 88px; right: calc(22px + var(--sr)); bottom: calc(54px + var(--sb)); background: rgba(255, 70, 70, .45); border-color: rgba(255, 200, 200, .8); font-size: 10px; }
+#tctl #tFire svg { width: 30px; height: 30px; }
+#tctl #tAmmo { position: absolute; top: -9px; right: -6px; padding: 2px 6px; border-radius: 999px; background: rgba(0,0,0,.7); font-size: 11px; font-weight: 800; color: #fff; }
+#tctl #tAmmo:empty { display: none; }
+#tctl #tAmmo.empty { color: #ff6a6a; }
+#tctl #tFire2 { width: 54px; height: 54px; left: calc(26px + var(--sl)); bottom: calc(196px + var(--sb)); background: rgba(255, 70, 70, .35); border-color: rgba(255, 200, 200, .6); }
+#tctl #tCrouch { width: 50px; height: 50px; right: calc(8px + var(--sr)); bottom: calc(6px + var(--sb)); }
+#tctl #tJump { width: 62px; height: 62px; right: calc(116px + var(--sr)); bottom: calc(10px + var(--sb)); }
+#tctl #tAim { width: 54px; height: 54px; right: calc(124px + var(--sr)); bottom: calc(96px + var(--sb)); }
+#tctl #tReload { width: 48px; height: 48px; right: calc(186px + var(--sr)); bottom: calc(72px + var(--sb)); }
+#tctl #tReload.on { animation: blink .8s infinite; }
+#tctl #tUse { width: 68px; height: 68px; right: calc(200px + var(--sr)); bottom: calc(140px + var(--sb)); background: rgba(255, 216, 74, .9); border-color: #fff3b0; color: #2a1d00; font-size: 9px; }
+#tctl #tUse svg { fill: #2a1d00; stroke: none; filter: none; width: 26px; height: 26px; }
+#tctl #tDrop { width: 40px; height: 40px; left: calc(50% + 136px); bottom: calc(8px + var(--sb)); font-size: 7px; }
+#tctl #tDrop svg { width: 16px; height: 16px; }
+#tctl #tPause { width: 40px; height: 40px; left: calc(10px + var(--sl)); top: calc(8px + var(--st)); }
+#tctl #tPause svg { width: 18px; height: 18px; stroke: none; }
+
+#joy { position: absolute; left: calc(96px + var(--sl)); top: calc(100% - 96px - var(--sb)); width: 0; height: 0; opacity: .45; transition: opacity .15s; }
+#joy::before { content: ''; position: absolute; left: -52px; top: -52px; width: 104px; height: 104px; border-radius: 50%; border: 2px solid rgba(255,255,255,.55); background: rgba(12, 16, 44, .3); }
+#joy i { position: absolute; left: -24px; top: -24px; width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,.75); box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+#joy.on { opacity: 1; transition: none; }
+#joy.run::before { border-color: #ffd84a; box-shadow: 0 0 14px rgba(255,216,74,.6); }
+#joy.run i { background: #ffd84a; }
+
+/* HUD na niskim, poziomym ekranie */
+body.touch #hotbar, body.touch #minimap, body.touch #counters, body.touch #scoreboard { pointer-events: auto; }
+body.touch #fullmap { pointer-events: auto; }
+body.touch #hotbar { right: auto; left: 50%; transform: translateX(-50%); bottom: calc(6px + var(--sb)); gap: 5px; }
+body.touch .slot { width: 48px; height: 44px; border-width: 2px; }
+body.touch .slot img { width: 42px; height: 25px; }
+body.touch .slot .num { display: none; }
+body.touch .slot .cnt { font-size: 11px; }
+body.touch .slot.sel { transform: translateY(-4px) scale(1.05); }
+body.touch #bars { left: 50%; transform: translateX(-50%); bottom: calc(60px + var(--sb)); width: 232px; gap: 3px; }
+body.touch .bar { height: 16px; } body.touch .bar span { line-height: 16px; font-size: 12px; }
+body.touch .bar.shield { height: 11px; } body.touch .bar.shield span { line-height: 11px; font-size: 10px; }
+body.touch #weaponPanel { display: none; }
+body.touch #equipName { right: auto; left: 0; width: 100%; text-align: center; bottom: calc(96px + var(--sb)); font-size: 18px; }
+body.touch #topright { top: calc(8px + var(--st)); right: calc(10px + var(--sr)); width: 104px; }
+body.touch #minimap { width: 104px; height: 104px; border-width: 2px; }
+body.touch #stormInfo { font-size: 10px; padding: 3px 5px; min-height: 0; margin-top: 4px; }
+body.touch #counters { margin-top: 4px; gap: 4px; }
+body.touch #counters span { font-size: 12px; padding: 3px; }
+body.touch #killfeed { top: calc(8px + var(--st)); left: calc(58px + var(--sl)); max-width: 36vw; gap: 2px; }
+body.touch #killfeed div { font-size: 11px; padding: 2px 7px; }
+body.touch #killfeed div:nth-child(n+4) { display: none; }
+body.touch #killfeed img { height: 15px; }
+body.touch #teamPanel { left: calc(10px + var(--sl)); bottom: auto; top: calc(56px + var(--st)); width: 168px; gap: 2px; }
+body.touch .tpRow { font-size: 11px; padding: 2px 6px; } body.touch .tpRow b { min-width: 50px; max-width: 70px; } body.touch .tpHead { font-size: 11px; }
+body.touch #toasts { left: auto; right: calc(124px + var(--sr)); top: calc(8px + var(--st)); align-items: flex-end; gap: 3px; }
+body.touch .toast { font-size: 12px; padding: 2px 8px 2px 4px; } body.touch .toast img { height: 22px; }
+body.touch #prompt { top: calc(8px + var(--st)); }
+body.touch .pcard { min-width: 0; max-width: 46vw; padding: 4px 10px 4px 4px; gap: 6px; }
+body.touch .pcard img { width: 64px; height: 38px; }
+body.touch .pname { font-size: 13px; } body.touch .prar { font-size: 9px; } body.touch .pstats { font-size: 10px; }
+body.touch .pkey { display: none; }
+body.touch #bigmsg { top: 20%; font-size: clamp(28px, 6vw, 54px); }
+body.touch #submsg { top: calc(20% + clamp(38px, 7.5vw, 66px)); left: 18%; right: 18%; font-size: 13px; }
+body.touch #objhp { top: calc(50% + 50px); width: 150px; margin-left: -75px; font-size: 11px; }
+body.touch #ammoHint { top: calc(50% - 76px); font-size: 17px; }
+body.touch #progressLabel { top: calc(50% + 34px); font-size: 12px; }
+body.touch .dn { font-size: 22px; } body.touch .dn.head { font-size: 28px; }
+body.touch #scoreboard { top: 6%; max-height: 86vh; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+
+/* obróć telefon */
+#rotate { position: fixed; inset: 0; z-index: 40; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; background: #0d1b2a; color: var(--ui-text); }
+#rotate .rIcon { font-size: 64px; animation: rot 1.6s ease-in-out infinite; }
+#rotate b { font-family: 'Luckiest Guy', Impact, sans-serif; font-size: 30px; letter-spacing: 1px; color: var(--ui-yellow); }
+#rotate span { color: var(--ui-dim); font-weight: 600; }
+@keyframes rot { 0%, 20% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+@media (orientation: portrait) { body.touch.playing #rotate { display: flex; } }
+
+/* menu na niskim ekranie (telefon poziomo): przewijane w całości */
+body.touch #menu { padding: max(12px, var(--st)) max(12px, var(--sr)) max(12px, var(--sb)) max(12px, var(--sl)); }
+@media (max-height: 560px) {
+  #menu { align-items: flex-start; overflow-y: auto; }
+  .panel { max-height: none; padding: 14px 16px; margin: auto 0; }
+  .mHead { margin-bottom: 8px; }
+  .logo { font-size: 30px; } .logo small { margin-top: 4px; font-size: 9px; }
+  .panes { height: auto; min-height: 0; overflow: visible; }
+  .btn.primary, .btn.go { font-size: 20px; padding: 10px 16px; }
+  .btn.big { font-size: 24px; padding: 12px; }
+  #joinBox { padding-top: 6px; }
+  #nick, #roomCode { padding: 10px; font-size: 18px; }
+}
+@media (max-width: 560px) { #teamTools .grp { flex-wrap: wrap; padding: 6px 8px 6px 12px; } }

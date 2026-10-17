@@ -20,6 +20,11 @@ const lerpAngle = (a, b, t) => {
 const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
+// telefon / tablet: sterowanie dotykiem zamiast myszy i klawiatury (?touch=1 wymusza, ?touch=0 wyłącza)
+const qTouch = new URLSearchParams(location.search).get('touch');
+const TOUCH = qTouch != null ? qTouch !== '0' : matchMedia('(hover: none) and (pointer: coarse)').matches;
+if (TOUCH) document.body.classList.add('touch');
+
 addEventListener('error', (e) => { const el = document.getElementById('connStatus'); if (el) el.textContent = 'Error: ' + e.message; });
 
 const sndPickup = () => { FX.beep(660, 0.06, 'triangle', 0.15); FX.beep(990, 0.08, 'triangle', 0.15, 0.06); };
@@ -32,7 +37,7 @@ renderer.domElement.id = 'game';
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = TOUCH ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap; // miękkie cienie są za drogie na telefon
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -55,13 +60,15 @@ scene.add(flash);
 FX.initFx(scene);
 
 // jakość grafiki (zapamiętana w przeglądarce)
-let QKEY = 'medium';
-try { QKEY = localStorage.getItem('fortjede-q') || 'medium'; } catch { /* brak storage */ }
-if (!VIS.QUALITY[QKEY]) QKEY = 'medium';
+const QDEF = TOUCH ? 'low' : 'medium';
+let QKEY = QDEF;
+try { QKEY = localStorage.getItem('fortjede-q') || QDEF; } catch { /* brak storage */ }
+if (!VIS.QUALITY[QKEY]) QKEY = QDEF;
 let QUAL = VIS.QUALITY[QKEY];
 let post = null;
 function applyQuality() {
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, QUAL.pixelRatio));
+  // ekran telefonu jest mały i gęsty: przy 1:1 obraz byłby rozmyty, więc trochę więcej pikseli
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, QUAL.pixelRatio * (TOUCH ? 1.5 : 1)));
   renderer.setSize(innerWidth, innerHeight);
   sun.shadow.mapSize.set(QUAL.shadow, QUAL.shadow);
   if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
@@ -70,12 +77,14 @@ function applyQuality() {
   if (env) env.setQuality(QUAL);
 }
 
-addEventListener('resize', () => {
+function onResize() {
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   if (post) post.setSize(innerWidth, innerHeight);
-});
+}
+addEventListener('resize', onResize);
+addEventListener('orientationchange', () => setTimeout(onResize, 300)); // iOS podaje nowy rozmiar z opóźnieniem
 
 // ================================================================ modele pomocnicze
 const BOX = new THREE.BoxGeometry(1, 1, 1);
@@ -439,11 +448,12 @@ function connFailed(text) {
     return;
   }
   if (document.pointerLockElement) document.exitPointerLock();
+  if (TOUCH && locked) setLocked(false);
   $('menu').classList.remove('hidden');
   $('joinBox').classList.remove('hidden');
   $('lobbyBox').classList.add('hidden');
   $('joinCard').classList.add('hidden');
-  $('connStatus').textContent = `${text} Refresh the page (F5) to play again.`;
+  $('connStatus').textContent = `${text} Refresh the page to play again.`;
 }
 
 function connect(name, code) {
@@ -474,7 +484,10 @@ function renderRoomInfo() {
   $('roomCodeOut').textContent = G.room;
   $('roomLink').value = inviteLink(G.room);
 }
+const canShare = TOUCH && !!navigator.share;
+if (canShare) $('copyLinkBtn').textContent = 'Share link';
 $('copyLinkBtn').onclick = () => {
+  if (canShare) { navigator.share({ title: 'Fortjede', text: `Join my Fortjede room ${G.room}`, url: $('roomLink').value }).catch(() => {}); return; }
   const done = () => { $('copyLinkBtn').textContent = 'Copied!'; setTimeout(() => { $('copyLinkBtn').textContent = 'Copy link'; }, 1500); };
   const t = $('roomLink');
   if (navigator.clipboard) navigator.clipboard.writeText(t.value).then(done, () => { t.select(); });
@@ -737,6 +750,7 @@ function toast(it) {
 // ================================================================ ekwipunek
 let ADS_MODE = 'toggle', SENS = 1;
 try { ADS_MODE = localStorage.getItem('fortjede-ads') || 'toggle'; } catch { /* brak storage */ }
+if (TOUCH) ADS_MODE = 'toggle'; // na ekranie AIM włącza i wyłącza celowanie
 function resetWeaponState() {
   if (ADS_MODE === 'toggle') G.adsHeld = false; // zmiana broni kończy celowanie
   G.reloadT = 0; G.reloading = false; G.useT = 0;
@@ -751,6 +765,10 @@ function showEquipName() {
   el.className = '';
   void el.offsetWidth;
   el.className = 'on';
+}
+function dropCurrent() {
+  if (!curItem() || G.dead) return;
+  dropItem(curItem()); G.inv[G.sel] = null; resetWeaponState(); hotbarDirty = true;
 }
 function selectSlot(i) {
   if (i === G.sel) return;
@@ -840,17 +858,32 @@ function interact() {
 const keys = {};
 let locked = false, jumpQueued = false;
 
+// „locked” = trwa gra (menu schowane). Na komputerze to przechwycona mysz, na telefonie po prostu tryb gry.
+function setLocked(v) {
+  locked = v;
+  document.body.classList.toggle('playing', v);
+  $('menu').classList.toggle('hidden', v);
+  if (!v) { releaseTouch(); G.mouseDown = false; G.adsHeld = false; renderPlayersList(); }
+}
 function lock() {
   if (!G.myId) return;
   FX.ac();
   if (document.activeElement) document.activeElement.blur();
+  if (TOUCH) {
+    setLocked(true);
+    // Android: pełny ekran i poziomo; iPhone tego nie umie (tam pełny ekran daje „Do ekranu początkowego”)
+    const de = document.documentElement, fs = de.requestFullscreen || de.webkitRequestFullscreen;
+    try {
+      const p = !document.fullscreenElement && fs && fs.call(de);
+      if (p && p.then) p.then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}), () => {});
+    } catch { /* bez pełnego ekranu */ }
+    return;
+  }
   try { const p = renderer.domElement.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch { /* ignore */ }
 }
-document.addEventListener('pointerlockchange', () => {
-  locked = document.pointerLockElement === renderer.domElement;
-  $('menu').classList.toggle('hidden', locked);
-  if (!locked) { G.mouseDown = false; G.adsHeld = false; renderPlayersList(); }
-});
+document.addEventListener('pointerlockchange', () => { if (!TOUCH) setLocked(document.pointerLockElement === renderer.domElement); });
+// telefon: wyjście z aplikacji / blokada ekranu = pauza (żadne palce nie zostają „wciśnięte”)
+document.addEventListener('visibilitychange', () => { if (TOUCH && document.hidden && locked) setLocked(false); });
 renderer.domElement.addEventListener('click', () => { if (!locked) lock(); });
 
 addEventListener('keydown', (e) => {
@@ -862,7 +895,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') startReload();
   if (e.code === 'KeyC') onCrouchKey();
   if (e.code === 'KeyE' && !e.repeat) interact();
-  if (e.code === 'KeyQ' && curItem() && !G.dead) { dropItem(curItem()); G.inv[G.sel] = null; resetWeaponState(); hotbarDirty = true; }
+  if (e.code === 'KeyQ') dropCurrent();
   if (e.code === 'KeyM') $('fullmap').classList.toggle('hidden');
   if (e.code === 'Tab') { e.preventDefault(); renderScoreboard(); $('scoreboard').classList.remove('hidden'); }
 });
@@ -872,7 +905,7 @@ addEventListener('keyup', (e) => {
   if (e.code === 'Tab') { e.preventDefault(); $('scoreboard').classList.add('hidden'); }
 });
 addEventListener('mousedown', (e) => {
-  if (!locked) return;
+  if (!locked || TOUCH) return; // na telefonie iOS dorabia mousedown po każdym stuknięciu
   if (e.button === 0) {
     G.mouseDown = true;
     if (G.spectating) nextSpec();
@@ -880,22 +913,125 @@ addEventListener('mousedown', (e) => {
   if (e.button === 2) G.adsHeld = ADS_MODE === 'hold' ? true : !G.adsHeld;
 });
 addEventListener('mouseup', (e) => {
+  if (TOUCH) return;
   if (e.button === 0) { G.mouseDown = false; G.dryClicked = false; }
   if (e.button === 2 && ADS_MODE === 'hold') G.adsHeld = false;
 });
 addEventListener('contextmenu', (e) => e.preventDefault());
 addEventListener('wheel', (e) => {
-  if (!locked || G.dead) return;
+  if (!locked || G.dead || TOUCH) return;
   selectSlot((G.sel + (e.deltaY > 0 ? 1 : -1) + 5) % 5);
 });
-addEventListener('mousemove', (e) => {
-  if (!locked) return;
+function lookBy(dx, dy, base) {
   const W = curWeapon();
   const zoomK = G.ads && W ? (W.scope ? 0.3 : 0.65) : 1;
-  const sens = 0.0022 * zoomK * SENS;
-  me.ry -= e.movementX * sens;
-  me.rx = clamp(me.rx - e.movementY * sens, -1.45, 1.45);
+  const sens = base * zoomK * SENS;
+  me.ry -= dx * sens;
+  me.rx = clamp(me.rx - dy * sens, -1.45, 1.45);
+}
+addEventListener('mousemove', (e) => {
+  if (!locked || TOUCH) return;
+  lookBy(e.movementX, e.movementY, 0.0022);
 });
+
+// ================================================================ sterowanie dotykiem
+// lewy kciuk: pływający joystick (za obręczą = sprint); prawy: przeciąganie = rozglądanie;
+// przyciski w #tctl. Wszystko na zdarzeniach pointer — każdy palec ma własny pointerId.
+const JOY_R = 52;
+const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0, sprint: false };
+const looks = new Map(); // palce, które obracają kamerą: pointerId -> ostatnia pozycja
+const tHeld = new Map(); // wciśnięte przyciski: pointerId -> co zrobić po puszczeniu
+let fireN = 0;
+function drawJoy() {
+  const el = $('joy');
+  if (!el) return;
+  const on = joy.id != null;
+  // w spoczynku miejsce wyznacza CSS (z marginesem na wcięcie ekranu), w ruchu — palec
+  el.style.left = on ? `${joy.ox}px` : '';
+  el.style.top = on ? `${joy.oy}px` : '';
+  el.classList.toggle('on', on);
+  el.classList.toggle('run', joy.sprint);
+  el.firstChild.style.transform = `translate(${joy.x * JOY_R}px,${-joy.y * JOY_R}px)`;
+}
+function moveJoy(e) {
+  let dx = e.clientX - joy.ox, dy = e.clientY - joy.oy;
+  let d = Math.hypot(dx, dy);
+  const far = JOY_R * 1.7;
+  if (d > far) { // baza jedzie za palcem, żeby nie trzeba było wracać kciukiem
+    joy.ox += dx * (1 - far / d); joy.oy += dy * (1 - far / d);
+    dx = e.clientX - joy.ox; dy = e.clientY - joy.oy; d = far;
+  }
+  joy.sprint = d > JOY_R * 1.3 && -dy > d * 0.6; // mocno do przodu, za obręcz
+  const k = d < 6 ? 0 : Math.min(1, d / JOY_R) / d;
+  joy.x = dx * k; joy.y = -dy * k;
+  drawJoy();
+}
+function releaseTouch() {
+  for (const up of tHeld.values()) if (up) up();
+  tHeld.clear(); looks.clear(); fireN = 0;
+  joy.id = null; joy.x = joy.y = 0; joy.sprint = false;
+  drawJoy();
+}
+function press(id, down, up, look) {
+  $(id).addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!locked || tHeld.has(e.pointerId)) return;
+    down();
+    tHeld.set(e.pointerId, up || null);
+    if (look) looks.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  });
+}
+if (TOUCH) {
+  const zone = $('tzone');
+  zone.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (!locked) return;
+    if (e.clientX < innerWidth * 0.42 && joy.id == null) { joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; moveJoy(e); }
+    else looks.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  });
+  addEventListener('pointermove', (e) => {
+    if (e.pointerId === joy.id) moveJoy(e);
+    const l = looks.get(e.pointerId);
+    if (l) {
+      if (locked) lookBy(e.clientX - l.x, e.clientY - l.y, 0.0048);
+      l.x = e.clientX; l.y = e.clientY;
+    }
+  });
+  const endPointer = (e) => {
+    if (e.pointerId === joy.id) { joy.id = null; joy.x = joy.y = 0; joy.sprint = false; drawJoy(); }
+    looks.delete(e.pointerId);
+    if (tHeld.has(e.pointerId)) { const up = tHeld.get(e.pointerId); tHeld.delete(e.pointerId); if (up) up(); }
+  };
+  addEventListener('pointerup', endPointer);
+  addEventListener('pointercancel', endPointer);
+  // bez zaznaczania tekstu, lupy i przybliżania dwoma palcami w trakcie gry
+  document.addEventListener('touchstart', (e) => { if (locked && !e.target.closest('#scoreboard')) e.preventDefault(); }, { passive: false });
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+
+  const fireDown = () => { fireN++; G.mouseDown = true; if (G.spectating) nextSpec(); };
+  const fireUp = () => { fireN = Math.max(0, fireN - 1); if (!fireN) { G.mouseDown = false; G.dryClicked = false; } };
+  press('tFire', fireDown, fireUp, true); // przeciąganie po przycisku strzału też celuje
+  press('tFire2', fireDown, fireUp, false);
+  press('tAim', () => { G.adsHeld = !G.adsHeld; });
+  press('tJump', onSpace);
+  press('tCrouch', onCrouchKey);
+  press('tReload', startReload);
+  press('tUse', () => { keys.KeyE = true; interact(); }, () => { keys.KeyE = false; cancelReboot(); });
+  press('tDrop', dropCurrent);
+  press('tPause', () => setLocked(false));
+
+  $('hotbar').addEventListener('pointerdown', (e) => {
+    const s = e.target.closest('.slot');
+    if (!s || !locked || G.dead) return;
+    e.preventDefault();
+    selectSlot([...s.parentNode.children].indexOf(s));
+  });
+  $('minimap').addEventListener('pointerdown', () => { if (locked) $('fullmap').classList.toggle('hidden'); });
+  $('fullmap').addEventListener('pointerdown', () => $('fullmap').classList.add('hidden'));
+  $('counters').addEventListener('pointerdown', () => { if (!locked) return; renderScoreboard(); $('scoreboard').classList.toggle('hidden'); });
+  $('scoreboard').addEventListener('click', () => $('scoreboard').classList.add('hidden'));
+  drawJoy();
+}
 
 function onSpace() {
   if (G.dead) return;
@@ -987,15 +1123,16 @@ function physics(dt) {
     return;
   }
   let ix = 0, iz = 0;
-  if (locked) {
-    ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
-    iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+  if (locked) { // klawisze albo joystick (analogowo: lekkie wychylenie = wolny chód)
+    ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + joy.x;
+    iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) + joy.y;
   }
+  const sprintIn = !!keys.ShiftLeft || joy.sprint;
   const fx = -Math.sin(me.ry), fz = -Math.cos(me.ry);
   const rxv = Math.cos(me.ry), rzv = -Math.sin(me.ry);
   let wx = fx * iz + rxv * ix, wz = fz * iz + rzv * ix;
-  const wl = Math.hypot(wx, wz);
-  if (wl > 0) { wx /= wl; wz /= wl; }
+  let wl = Math.hypot(wx, wz);
+  if (wl > 1) { wx /= wl; wz /= wl; wl = 1; }
 
   const n = Math.max(1, Math.ceil(dt / (1 / 90)));
   const h = dt / n;
@@ -1012,8 +1149,8 @@ function physics(dt) {
       me.vz += (wz * sp - me.vz) * Math.min(1, 2.5 * h);
       me.vy = -7 - (iz > 0 ? 1.5 : 0);
     } else {
-      if (keys.ShiftLeft && iz > 0 && ADS_MODE === 'toggle' && G.adsHeld) G.adsHeld = false; // sprint kończy celowanie
-      const sprintKey = keys.ShiftLeft && iz > 0 && !G.ads && G.useT === 0;
+      if (sprintIn && iz > 0.3 && ADS_MODE === 'toggle' && G.adsHeld) G.adsHeld = false; // sprint kończy celowanie
+      const sprintKey = sprintIn && iz > 0.3 && !G.ads && G.useT === 0;
       if (sprintKey && me.crouch && me.slideT <= 0) setCrouch(false); // sprint podnosi z kucania
       const sprint = sprintKey && !me.crouch;
       if (me.slideT > 0) {
@@ -1043,7 +1180,7 @@ function physics(dt) {
         me.vx += (wx * sp - me.vx) * Math.min(1, accel * h);
         me.vz += (wz * sp - me.vz) * Math.min(1, accel * h);
         if (jumpQueued && me.onGround) {
-          const dx = wl > 0 ? wx : fx, dz = wl > 0 ? wz : fz;
+          const dx = wl > 0 ? wx / wl : fx, dz = wl > 0 ? wz / wl : fz;
           const l = ledgeAhead(dx, dz, 0.6, 1.6); // przeskok przez niską przeszkodę
           if (l) { startClimb(l); jumpQueued = false; return; }
           if (!me.crouch || setCrouch(false)) { me.vy = S.JUMP_V; me.onGround = false; }
@@ -1051,7 +1188,7 @@ function physics(dt) {
       }
       me.vy -= S.GRAVITY * h;
       // w powietrzu z wciśniętym W przy krawędzi -> podciągnij się
-      if (!me.onGround && iz > 0 && me.vy < 5) {
+      if (!me.onGround && iz > 0.3 && me.vy < 5) {
         const l = ledgeAhead(fx, fz, 0.3, 2.7);
         if (l) { startClimb(l); jumpQueued = false; return; }
       }
@@ -1407,7 +1544,7 @@ function renderPlayersList() {
   $('lobbyStatus').innerHTML = `<span class="pill">🙂 <b>${humansN}</b> player${humansN === 1 ? '' : 's'}</span><span class="pill">🤖 <b>${botsN}</b> bots</span><span class="pill">👑 ${esc(nameOf(G.hostId))}</span>`;
   $('hostInfo').innerHTML = host ? 'You are the <b>host</b>. You set up the teams and the match.' : `<b>${esc(nameOf(G.hostId))}</b> is the host and sets up the teams and the match.`;
   if (G.roomOwner) $('hostInfo').innerHTML += ' The match runs in <b>your browser</b>. If you leave, another player takes over the room automatically.';
-  $('teamHint').textContent = edit ? 'Drag a player onto a team, or click a player and then a team. Click a team name to rename it.' : 'Only the host can arrange teams.';
+  $('teamHint').textContent = !edit ? 'Only the host can arrange teams.' : TOUCH ? 'Tap a player, then tap a team. Tap a team name to rename it.' : 'Drag a player onto a team, or click a player and then a team. Click a team name to rename it.';
   $('teamTools').innerHTML = !edit ? '' : `
     <button class="btn ghost" data-act="solo">Everyone solo</button>
     <span class="grp">Random teams of
@@ -1695,7 +1832,7 @@ function updateHUD(dt) {
         const cd = Math.ceil((G.rebootReadyAt - performance.now()) / 1000);
         p.style.setProperty('--rc', '#4cf2ff');
         p.innerHTML = cd > 0 ? `<div class="pcard"><div><div class="pname" style="color:#4cf2ff">Reboot Van</div><div class="pstats">Recharging… ${cd} s</div></div></div>`
-          : `<div class="pcard"><div><div class="pname" style="color:#4cf2ff">Reboot ${esc(carrying().map((c) => nameOf(c.owner)).join(', '))}</div><div class="pstats">Hold E for ${G.settings.rebootTime} s</div></div></div><div class="pkey"><kbd>E</kbd>Hold</div>`;
+          : `<div class="pcard"><div><div class="pname" style="color:#4cf2ff">Reboot ${esc(carrying().map((c) => nameOf(c.owner)).join(', '))}</div><div class="pstats">Hold ${TOUCH ? 'REBOOT' : 'E'} for ${G.settings.rebootTime} s</div></div></div><div class="pkey"><kbd>E</kbd>Hold</div>`;
         hudCache.prompt = 'reboot' + cd;
       } else if (inter.kind === 'card') {
         const col = tColor(inter.c.team);
@@ -1714,6 +1851,7 @@ function updateHUD(dt) {
     }
   } else hudCache.prompt = null;
   setClass('prompt', 'on', !!inter);
+  if (TOUCH) updateTouchHUD(it, W, inter);
 
   // komunikaty
   let big = '', red = false, sub = '';
@@ -1724,7 +1862,7 @@ function updateHUD(dt) {
     if (G.endInfo.team) sub = `Team ${tName(G.endInfo.team)}: ${G.endInfo.winner} • `;
     sub = (sub || '') + 'Back to the lobby in a moment…';
   } else if (G.state === 'countdown') { big = `MATCH IN ${G.cd}`; sub = 'Get ready!'; }
-  else if (G.state === 'lobby') sub = G.dead ? 'You died — respawning in a moment…' : (amHost() ? 'WARM-UP • Esc → START MATCH' : 'WARM-UP • waiting for the host to start the match');
+  else if (G.state === 'lobby') sub = G.dead ? 'You died — respawning in a moment…' : (amHost() ? `WARM-UP • ${TOUCH ? '❚❚' : 'Esc'} → START MATCH` : 'WARM-UP • waiting for the host to start the match');
   else if (G.state === 'match') {
     const so = G.spectating ? specTarget() : null;
     const sname = so ? (G.roster.get(so.id) || {}).name || '?' : '—';
@@ -1735,10 +1873,10 @@ function updateHUD(dt) {
       sub = `${st} • spectating ${sname}`;
     } else if (G.dead && G.deadInfo && !G.deadInfo.lobby) {
       big = 'ELIMINATED'; red = true;
-      sub = `${G.deadInfo.place ? `Placed #${G.deadInfo.place}` : 'Your team is still fighting'}${G.deadInfo.byName ? ` • eliminated by ${G.deadInfo.byName}` : ''} • spectating ${sname} (LMB — next)`;
+      sub = `${G.deadInfo.place ? `Placed #${G.deadInfo.place}` : 'Your team is still fighting'}${G.deadInfo.byName ? ` • eliminated by ${G.deadInfo.byName}` : ''} • spectating ${sname} (${TOUCH ? 'NEXT' : 'LMB'} — next)`;
     } else if (G.spectating) sub = `Match in progress — spectating ${sname}. You'll play in the next one!`;
-    else if (me.mode === 'bus') sub = 'SPACE — jump out of the Battle Bus';
-    else if (me.mode === 'sky') sub = 'SPACE — deploy glider';
+    else if (me.mode === 'bus') sub = TOUCH ? 'Tap JUMP OUT to leave the Battle Bus' : 'SPACE — jump out of the Battle Bus';
+    else if (me.mode === 'sky') sub = TOUCH ? 'Tap GLIDE to deploy the glider' : 'SPACE — deploy glider';
     else if (carrying().length) sub = `🃏 Carrying ${carrying().map((c) => nameOf(c.owner)).join(', ')}'s card — bring it to the ♻ Reboot Van (blue marker)`;
   }
   if (!sub && G.killMsgT > 0) sub = G.killMsg;
@@ -1758,6 +1896,28 @@ function updateHUD(dt) {
     drawMap($('minimap').getContext('2d'), 200, cx, cz, span, false);
     if (!$('fullmap').classList.contains('hidden')) drawMap($('bigmap').getContext('2d'), 640, 0, 0, 440, true);
   }
+}
+
+// przyciski dotykowe pokazują tylko to, co się teraz da zrobić
+function updateTouchHUD(it, W, inter) {
+  const alive = !G.dead && !G.spectating;
+  const ground = alive && (me.mode === 'ground' || me.mode === 'climb');
+  setText('tFireL', G.spectating ? 'NEXT' : it && it.k === 'c' ? 'USE' : W && W.melee ? 'HIT' : 'FIRE');
+  setText('tAmmo', ground && it && it.k === 'w' ? `${it.ammo}/${WEAPONS[it.type].mag}` : ground && it ? `×${it.n}` : '');
+  setClass('tAmmo', 'empty', !!(it && it.k === 'w' && it.ammo === 0));
+  setClass('tFire', 'hide', !(ground || G.spectating));
+  setClass('tFire2', 'hide', !ground);
+  setClass('tAim', 'hide', !(ground && W && !W.melee));
+  setClass('tAim', 'on', !!G.adsHeld);
+  setClass('tReload', 'hide', !(ground && it && it.k === 'w' && it.ammo < WEAPONS[it.type].mag));
+  setClass('tReload', 'on', !!(it && it.k === 'w' && it.ammo === 0 && !G.reloading));
+  setClass('tCrouch', 'hide', !ground);
+  setClass('tCrouch', 'on', me.crouch);
+  setClass('tJump', 'hide', !(ground || (alive && (me.mode === 'bus' || me.mode === 'sky'))));
+  setText('tJumpL', me.mode === 'bus' ? 'JUMP OUT' : me.mode === 'sky' ? 'GLIDE' : 'JUMP');
+  setClass('tDrop', 'hide', !(ground && it));
+  setClass('tUse', 'hide', !inter);
+  if (inter) setText('tUseL', inter.kind === 'chest' ? 'OPEN' : inter.kind === 'reboot' ? 'REBOOT' : inter.kind === 'card' ? 'TAKE CARD' : 'PICK UP');
 }
 
 // ================================================================ pętla
@@ -1923,8 +2083,9 @@ if (invited) {
   $('playBtn').textContent = 'Create my own room instead';
 }
 $('resumeBtn').onclick = lock;
+if (TOUCH) { $('resumeBtn').textContent = '▶ TAP TO PLAY'; $('ammoHint').textContent = 'TAP RELOAD'; }
 $('startBtn').onclick = () => { net.send({ t: 'start' }); lock(); };
-$('nick').focus();
+if (!TOUCH) $('nick').focus(); // na telefonie klawiatura zasłoniłaby pół ekranu
 const store = (k, v) => { try { localStorage.setItem(k, v); } catch { /* brak storage */ } };
 const load = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
 function bindSeg(id, value, onPick) {
@@ -1946,4 +2107,4 @@ const qsNick = qs.get('nick');
 if (qsNick) { $('nick').value = qsNick.slice(0, 16); join(!!invited); }
 else if (rejoin && $('nick').value.trim()) join(true); // odświeżona karta w trakcie gry — wracamy od razu
 
-window.__fj = { G, me, net, camera, keys, jumpFromBus, addItem, interact, selectSlot, onCrouchKey, setLocked: (v) => { locked = v; }, get gm() { return gm; } }; // debug
+window.__fj = { G, me, net, camera, keys, joy, jumpFromBus, addItem, interact, selectSlot, onCrouchKey, setLocked: (v) => { locked = v; }, get gm() { return gm; } }; // debug
