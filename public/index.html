@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Fortjede</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">{ "imports": { "three": "/vendor/three.module.js", "three/addons/": "/vendor/addons/" } }</script>
+</head>
+<body>
+  <div id="hud" class="hidden">
+    <div id="scope"></div>
+    <div id="vignette"></div>
+    <div id="stormfx"></div>
+
+    <div id="crosshair" class="lines"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><div class="ring"></div><b></b></div>
+    <svg id="reloadRing" viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" class="bg"></circle><circle cx="32" cy="32" r="26" class="fg" id="reloadFg"></circle></svg>
+    <div id="progressLabel"></div>
+    <div id="objhp"><span id="objName"></span><div class="ob"><div id="objFill"></div></div><span id="objTxt"></span></div>
+    <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+
+    <div id="topright">
+      <canvas id="minimap" width="200" height="200"></canvas>
+      <div id="stormInfo"></div>
+      <div id="counters"><span id="aliveCnt">👤 0</span><span id="killCnt">💀 0</span></div>
+    </div>
+    <div id="killfeed"></div>
+    <div id="teamPanel"></div>
+    <div id="toasts"></div>
+    <div id="bigmsg"></div>
+    <div id="submsg"></div>
+    <div id="prompt"></div>
+
+    <div id="bars">
+      <div class="bar shield"><div class="fill" id="shFill"></div><span id="shTxt">0</span></div>
+      <div class="bar health"><div class="fill" id="hpFill"></div><span id="hpTxt">100</span></div>
+    </div>
+
+    <div id="equipName"></div>
+    <div id="ammoHint">R — PRZEŁADUJ</div>
+    <div id="weaponPanel">
+      <img id="wIcon" alt="">
+      <div class="wtext">
+        <div id="weaponName"></div>
+        <div id="ammo"><span id="ammoMag"></span><span id="ammoMax"></span></div>
+      </div>
+    </div>
+    <div id="hotbar"></div>
+    <div id="dmgnums"></div>
+    <div id="markers"></div>
+    <div id="scoreboard" class="hidden"></div>
+  </div>
+
+  <div id="fullmap" class="hidden"><canvas id="bigmap" width="640" height="640"></canvas></div>
+
+  <div id="menu">
+    <div class="panel">
+      <h1>FORTJEDE</h1>
+      <div class="tag">battle royale • bez budowania</div>
+      <div id="joinBox">
+        <input id="nick" maxlength="16" placeholder="Twój nick" autocomplete="off">
+        <button id="playBtn">GRAJ</button>
+        <div id="connStatus"></div>
+      </div>
+      <div id="lobbyBox" class="hidden">
+        <button id="resumeBtn">KLIKNIJ ABY GRAĆ</button>
+        <div id="hostInfo"></div>
+        <div id="startBox"><button id="startBtn">START MECZU</button></div>
+        <div class="lobbyCols">
+          <div class="lobbyCol"><div class="colHead">Drużyny</div><div id="playersList"></div></div>
+          <div class="lobbyCol"><div class="colHead">Ustawienia meczu</div><div id="settingsBox"></div></div>
+        </div>
+      </div>
+      <div id="qualityBox">Grafika
+        <select id="quality"><option value="low">Niska (słabszy laptop)</option><option value="medium">Średnia</option><option value="high">Wysoka</option></select>
+      </div>
+      <div class="help">
+        <div><kbd>WSAD</kbd> ruch</div><div><kbd>Shift</kbd> sprint</div>
+        <div><kbd>Spacja</kbd> skok / wyskok z autobusu / lotnia</div>
+        <div><kbd>LPM</kbd> strzał / użyj</div><div><kbd>PPM</kbd> celowanie</div>
+        <div><kbd>1-5</kbd> / kółko — sloty</div><div><kbd>R</kbd> przeładowanie</div>
+        <div><kbd>E</kbd> podnieś / otwórz skrzynię</div><div><kbd>Q</kbd> wyrzuć przedmiot</div>
+        <div><kbd>C</kbd> kucanie (w biegu: ślizg)</div><div><kbd>W</kbd>+<kbd>Spacja</kbd> przy krawędzi — wspinaczka</div>
+        <div><kbd>M</kbd> mapa</div><div><kbd>Tab</kbd> tabela drużyn</div><div><kbd>Esc</kbd> menu</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
