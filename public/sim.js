@@ -1,6 +1,8 @@
 // Fortjede — autorytatywna symulacja meczu: logika gry, burza, loot, boty.
-// Jedna instancja na moduł; działa w Web Workerze hosta (host-worker.js).
+// Jedna instancja na moduł; działa w Web Workerze hosta (host-worker.js), start przez init().
 // Połączenie z graczem to dowolny obiekt z metodą send(string).
+// Rozłączony gracz zostaje na mapie (link = null) i wraca do swojej postaci, łącząc się z tym samym tokenem.
+// Host co 2 s wysyła gościom pełną kopię stanu (exportState), żeby po jego wyjściu ktoś mógł przejąć pokój (init(kopia)).
 import {
   GameMap, WEAPONS, PICKAXE, BOT_WEAPONS, STORM_PHASES, STORM_START_R, BUS_TIME, MODES, MODE_CODE,
   GRAVITY, JUMP_V, randomItem, sanitizeItem, applyUse, busPos, findSpawn,
@@ -10,10 +12,9 @@ import {
 
 // ---------------------------------------------------------------- stan gry
 
-const SEED = (Math.random() * 1e9) | 0;
-const map = new GameMap(SEED);
-const MAP_JSON = map.toJSON();
-console.log(`Map: seed ${SEED}, ${map.towns.length} towns, ${map.pads.length} houses, ${map.chests.length} chests`);
+let SEED = 0, map = null, MAP_JSON = null;
+const BACKUP_TICKS = 40; // kopia stanu dla gości co 2 s
+const LOBBY_GONE_MS = 60000; // rozłączony gracz w lobby znika po minucie (tyle może trwać ponowne łączenie); w meczu stoi do końca
 
 const ents = new Map(); // id -> gracz lub bot
 let nextId = 1;
@@ -49,8 +50,15 @@ function broadcast(msg, except) {
   for (const e of ents.values()) if (e !== except) send(e, s);
 }
 function humans() { return [...ents.values()].filter((e) => !e.bot); }
+function online() { return humans().filter((e) => e.link); }
 function rosterMsg() {
-  return { t: 'roster', list: [...ents.values()].map((e) => ({ id: e.id, name: e.name, bot: e.bot, team: e.team })), host: game.hostId, teams: [...game.teams.values()] };
+  return { t: 'roster', list: [...ents.values()].map((e) => ({ id: e.id, name: e.name, bot: e.bot, team: e.team, off: !e.bot && !e.link })), host: game.hostId, teams: [...game.teams.values()] };
+}
+const EMPTY_INV = () => [null, null, null, null, null];
+function removeHuman(e) {
+  ents.delete(e.id);
+  if (game.cards.delete(e.id)) broadcastCards();
+  if (game.hostId === e.id) pickHost();
 }
 
 function newEnt(props) {
@@ -58,6 +66,7 @@ function newEnt(props) {
     id: nextId++, name: '?', bot: false, link: null,
     x: 0, y: 0, z: 0, ry: 0, rx: 0, vy: 0, mode: 'ground', w: '', mv: false,
     hp: 100, sh: 0, alive: true, inMatch: false, kills: 0, respawnAt: 0, team: 0,
+    tok: '', inv: EMPTY_INV(), place: 0, disc: 0,
   }, props);
 }
 
@@ -189,6 +198,17 @@ function kill(target, attacker, w, head) {
     if (aliveInMatch().some((e) => sameTeam(e, target))) { canReboot = SET().reboot; if (canReboot) createCard(target); }
     else { place = aliveTeams().size + 1; teamOut(target, place); }
   }
+  target.place = place;
+  // ekwipunek: gracz online wyrzuca go sam (klient), za rozłączonego robi to host
+  if (!target.bot && !target.link) {
+    for (const it of target.inv || []) {
+      if (!it) continue;
+      const a = Math.random() * Math.PI * 2, d = 0.6 + Math.random() * 1.2;
+      const x = target.x + Math.cos(a) * d, z = target.z + Math.sin(a) * d;
+      spawnLoot(it, x, groundAt(map, x, z, target.y + 1), z);
+    }
+  }
+  target.inv = EMPTY_INV();
   send(target, { t: 'dead', place, canReboot, by: attacker && attacker !== target ? attacker.id : null, byName: attacker && attacker !== target ? attacker.name : null, lobby: !inMatch });
   if (!inMatch) target.respawnAt = now() + 3000;
   if (target.bot && inMatch) {
@@ -226,7 +246,7 @@ function dropCard(c, carrier) {
 // cała drużyna odpadła: powiadom martwych kolegów i usuń ich karty
 function teamOut(target, place) {
   if (target.team <= 0) return;
-  for (const e of ents.values()) if (sameTeam(e, target) && !e.bot) send(e, { t: 'teamout', place });
+  for (const e of ents.values()) if (sameTeam(e, target) && !e.bot) { if (!e.alive) e.place = place; send(e, { t: 'teamout', place }); }
   for (const [owner, c] of game.cards) if (c.team === target.team) game.cards.delete(owner);
   broadcastCards();
 }
@@ -243,7 +263,10 @@ function doReboot(carrier) {
     Object.assign(o, { alive: true, inMatch: true, hp: 100, sh: 0, mode: 'sky', respawnAt: 0, x: map.reboot.x + Math.cos(a) * 3, y: map.reboot.y + 55, z: map.reboot.z + Math.sin(a) * 3 });
     if (o.bot) Object.assign(o, { tx: map.reboot.x + (Math.random() - 0.5) * 30, tz: map.reboot.z + (Math.random() - 0.5) * 30, target: null, wp: null });
     send(o, { t: 'rebooted', p: [r2(o.x), r2(o.y), r2(o.z)], by: carrier.name });
-    send(o, { t: 'got', item: { k: 'w', type: 'pistol', rar: 0, ammo: WEAPONS.pistol.mag } });
+    const pistol = { k: 'w', type: 'pistol', rar: 0, ammo: WEAPONS.pistol.mag };
+    o.inv = [pistol, null, null, null, null];
+    if (!o.bot && !o.link) parkOffline(o);
+    send(o, { t: 'got', item: pistol });
     revived.push(o.name);
   }
   if (revived.length) {
@@ -336,7 +359,10 @@ function startMatch() {
   game.stormNow = stormState(now());
   game.stormAcc = 0;
   for (const h of humans()) {
-    Object.assign(h, { inMatch: true, alive: true, hp: SET().startHp, sh: SET().startShield, kills: 0, mode: 'bus', respawnAt: 0 });
+    Object.assign(h, { inv: EMPTY_INV(), place: 0, kills: 0, respawnAt: 0 });
+    // rozłączeni w lobby nie lecą autobusem — po powrocie oglądają mecz
+    if (!h.link) { Object.assign(h, { inMatch: false, alive: false, mode: 'dead' }); continue; }
+    Object.assign(h, { inMatch: true, alive: true, hp: SET().startHp, sh: SET().startShield, mode: 'bus' });
     const bp = busPos(game.bus, 0); h.x = bp.x; h.y = bp.y; h.z = bp.z;
   }
   for (const e of ents.values()) if (e.bot) prepBot(e);
@@ -369,6 +395,7 @@ function toLobby() {
   clearCards();
   resetObjects();
   resetLoot();
+  for (const h of humans()) if (!h.link) removeHuman(h);
   for (const h of humans()) respawn(h, 'lobby');
   broadcast(rosterMsg());
 }
@@ -376,8 +403,18 @@ function toLobby() {
 function respawn(h, kind) {
   const p = spawnPos();
   Object.assign(h, { x: p.x, y: p.y, z: p.z, vy: 0, inMatch: false, alive: true, hp: 100, sh: 0, mode: 'ground', respawnAt: 0 });
-  if (kind === 'lobby') h.kills = 0;
+  if (kind === 'lobby') { h.kills = 0; h.inv = EMPTY_INV(); h.place = 0; }
   send(h, { t: kind, p: [r2(p.x), r2(p.y), r2(p.z)] });
+}
+
+// rozłączony gracz nie ma kto sterować — zostaje stać na ziemi (z autobusu wypada od razu)
+function parkOffline(e) {
+  if (!e.alive) return;
+  if (e.mode === 'bus' && game.bus) { const bp = busPos(game.bus, Math.min(1, game.busT)); e.x = bp.x; e.z = bp.z; }
+  const d = Math.hypot(e.x, e.z);
+  if (d > 165) { e.x *= 165 / d; e.z *= 165 / d; e.y = 200; } // autobus lata nad morzem — postaw na wyspie
+  if (e.mode !== 'ground') { e.y = groundAt(map, e.x, e.z, e.y + 1); e.mode = 'ground'; }
+  e.vy = 0; e.mv = false; e.cr = false;
 }
 
 // ---------------------------------------------------------------- boty
@@ -502,14 +539,21 @@ function addTeam() {
   game.teams.set(t.id, t);
   return t;
 }
-addTeam(); addTeam(); // na start dwie puste drużyny
 function pickHost() {
-  const hs = humans();
+  const hs = online();
   const owner = hs.find((h) => h.owner);
   game.hostId = owner ? owner.id : hs.length ? hs.reduce((a, b) => (a.id < b.id ? a : b)).id : null;
 }
 
-// nowe połączenie; owner = gracz, w którego przeglądarce działa symulacja (twórca pokoju)
+// stan własnej postaci dla wracającego gracza
+function resumeInfo(e) {
+  return {
+    p: [r2(e.x), r2(e.y), r2(e.z)], ry: r2(e.ry), mode: e.mode, alive: e.alive, inMatch: e.inMatch,
+    hp: Math.round(e.hp), sh: Math.round(e.sh), kills: e.kills, inv: e.inv, place: e.place, canReboot: game.cards.has(e.id),
+  };
+}
+
+// nowe połączenie; owner = gracz, w którego przeglądarce działa symulacja
 export function connect(link, owner) {
   let me = null;
   return {
@@ -520,42 +564,118 @@ export function connect(link, owner) {
       if (!me) {
         if (m.t !== 'join') return;
         const name = String(m.name || '').replace(/[<>&"']/g, '').trim().slice(0, 16) || `Player${nextId}`;
-        me = newEnt({ link, name, owner: !!owner });
-        ents.set(me.id, me);
+        const tok = typeof m.tok === 'string' ? m.tok.slice(0, 40) : '';
+        // postaci hosta nie da się przejąć z innej karty (zamknęłoby to pokój wszystkim) — taki gracz wchodzi jako nowy
+        const old = tok && humans().find((e) => e.tok === tok && !(e.link && e.owner && !owner));
+        let resume = null;
+        if (old) {
+          // powrót do swojej postaci; jeśli stare połączenie jeszcze wisi, nowe je zastępuje
+          if (old.link && old.link !== link) send(old, { t: 'replaced' });
+          me = old;
+          Object.assign(me, { link, name, owner: !!owner, disc: 0 });
+          resume = resumeInfo(me);
+        } else {
+          me = newEnt({ link, name, owner: !!owner, tok: humans().some((e) => e.tok === tok) ? '' : tok });
+          ents.set(me.id, me);
+          const inLobby = game.state === 'lobby' || game.state === 'countdown';
+          if (inLobby) { const p = spawnPos(); Object.assign(me, { x: p.x, y: p.y, z: p.z }); }
+          else { me.alive = false; me.mode = 'dead'; }
+        }
         const cur = ents.get(game.hostId);
-        if (!cur || (owner && !cur.owner)) game.hostId = me.id;
-        const inLobby = game.state === 'lobby' || game.state === 'countdown';
-        let spawn = null;
-        if (inLobby) { const p = spawnPos(); Object.assign(me, { x: p.x, y: p.y, z: p.z }); spawn = [r2(p.x), r2(p.y), r2(p.z)]; }
-        else { me.alive = false; me.mode = 'dead'; }
+        if (!cur || !cur.link || (owner && !cur.owner)) game.hostId = me.id;
+        const spawn = !old && me.alive ? [r2(me.x), r2(me.y), r2(me.z)] : null;
         send(me, {
-          t: 'welcome', id: me.id, map: MAP_JSON, gs: game.state, spawn,
+          t: 'welcome', id: me.id, map: MAP_JSON, gs: game.state, spawn, me: resume,
           bus: game.bus ? { from: game.bus.from, to: game.bus.to } : null,
           loot: [...game.loot.values()].map(lootPublic), opened: [...game.opened], settings: SET(),
           destroyed: [...game.destroyed], objHp: [...game.objHp], cards: cardsMsg(),
         });
         broadcast(rosterMsg());
-        console.log(`+ ${me.name} (${humans().length} players)`);
+        console.log(`${old ? '↺' : '+'} ${me.name} (${online().length} online)`);
         return;
       }
+      if (me.link !== link) return; // to połączenie zastąpiło nowsze
       handle(me, m);
     },
     close() {
-      if (!me || !ents.has(me.id)) return;
-      ents.delete(me.id);
-      console.log(`- ${me.name} (${humans().length} players)`);
+      if (!me || me.link !== link || !ents.has(me.id)) return;
+      // postać zostaje na mapie: stoi, można ją zabić, a gracz może do niej wrócić
+      me.link = null; me.disc = now();
+      parkOffline(me);
+      game.rebooting.delete(me.id);
+      if (game.state === 'match') {
+        let dropped = false;
+        for (const c of game.cards.values()) if (c.carrier === me.id) { dropCard(c, me); dropped = true; }
+        if (dropped) broadcastCards();
+      }
+      console.log(`- ${me.name} (${online().length} online)`);
       if (game.hostId === me.id) pickHost();
       broadcast(rosterMsg());
-      if (game.state === 'match' && me.inMatch && me.alive) {
-        broadcast({ t: 'kill', k: null, kid: null, v: me.name, vid: me.id, w: 'quit', head: false });
-        for (const c of game.cards.values()) if (c.carrier === me.id) dropCard(c, me);
-        if (!aliveInMatch().some((e) => sameTeam(e, me))) teamOut(me, aliveTeams().size + 1);
-        checkEnd();
-      }
-      if (game.cards.delete(me.id)) broadcastCards();
-      if (humans().length === 0 && game.state !== 'lobby') toLobby();
     },
   };
+}
+
+// ---------------------------------------------------------------- kopia stanu i start
+
+// czasy zapisujemy względnie (ms od teraz), bo zegary komputerów hosta i następcy się różnią
+const rel = (v, t) => (v ? v - t : 0);
+const abs = (v, t) => (v ? v + t : 0);
+
+export function exportState() {
+  const t = now();
+  return {
+    v: 1, seed: SEED, nextId,
+    game: {
+      state: game.state, countdownEnd: rel(game.countdownEnd, t), endAt: rel(game.endAt, t),
+      bus: game.bus && { ...game.bus, t0: rel(game.bus.t0, t) }, busT: game.busT,
+      storm: game.storm && { phases: game.storm.phases, t0: rel(game.storm.t0, t) }, stormAcc: game.stormAcc,
+      loot: [...game.loot.values()], nextLootId: game.nextLootId, opened: [...game.opened],
+      startedWith: game.startedWith, objHp: [...game.objHp], destroyed: [...game.destroyed],
+      cards: [...game.cards.values()].map((c) => ({ ...c, expireAt: rel(c.expireAt, t) })),
+      rebootReadyAt: rel(game.rebootReadyAt, t), startedTeams: game.startedTeams,
+      settings: game.settings, hostId: game.hostId, teams: [...game.teams.values()],
+      nextTeam: game.nextTeam, teamSeq: game.teamSeq, tickNo: game.tickNo || 0,
+    },
+    ents: [...ents.values()].map(({ link, target, ...e }) => ({ ...e, respawnAt: rel(e.respawnAt, t), disc: rel(e.disc, t) })),
+    // kolejność przejmowania pokoju: gracze online poza hostem, od najstarszego
+    succ: online().filter((e) => !e.owner).sort((a, b) => a.id - b.id).map((e) => e.tok).filter(Boolean),
+  };
+}
+
+// start symulacji: nowy pokój albo przejęcie z kopii stanu poprzedniego hosta
+export function init(st) {
+  SEED = st ? st.seed : (Math.random() * 1e9) | 0;
+  map = new GameMap(SEED);
+  MAP_JSON = map.toJSON();
+  console.log(`Map: seed ${SEED}, ${map.towns.length} towns, ${map.pads.length} houses, ${map.chests.length} chests`);
+  if (!st) {
+    addTeam(); addTeam(); // na start dwie puste drużyny
+    resetLoot();
+    syncBots();
+    return;
+  }
+  const t = now(), g = st.game;
+  nextId = st.nextId;
+  Object.assign(game, {
+    state: g.state, countdownEnd: abs(g.countdownEnd, t), endAt: abs(g.endAt, t),
+    bus: g.bus && { ...g.bus, t0: abs(g.bus.t0, t) }, busT: g.busT,
+    storm: g.storm && { phases: g.storm.phases, t0: abs(g.storm.t0, t) }, stormAcc: g.stormAcc,
+    loot: new Map(g.loot.map((l) => [l.id, l])), nextLootId: g.nextLootId, opened: new Set(g.opened),
+    startedWith: g.startedWith, objHp: new Map(g.objHp), destroyed: new Set(g.destroyed),
+    cards: new Map(g.cards.map((c) => [c.owner, { ...c, expireAt: abs(c.expireAt, t) }])), rebooting: new Map(),
+    rebootReadyAt: abs(g.rebootReadyAt, t), startedTeams: g.startedTeams,
+    settings: g.settings, hostId: g.hostId, teams: new Map(g.teams.map((x) => [x.id, x])),
+    nextTeam: g.nextTeam, teamSeq: g.teamSeq, tickNo: g.tickNo,
+  });
+  game.stormNow = game.storm ? stormState(t) : null;
+  for (const key of game.destroyed) { const o = objByKey(map, key); if (o) o.dead = true; }
+  ents.clear();
+  for (const e of st.ents) {
+    const x = { ...e, link: null, owner: false, target: null, respawnAt: abs(e.respawnAt, t), disc: e.bot ? 0 : t };
+    if (!x.bot) parkOffline(x);
+    ents.set(x.id, x);
+  }
+  console.log(`Room taken over: ${humans().length} players, state ${game.state}`);
 }
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -733,6 +853,11 @@ function handle(me, m) {
       broadcast(rosterMsg());
       break;
     }
+    case 'inv': { // ekwipunek trzyma klient; host ma kopię na wypadek rozłączenia i przejęcia pokoju
+      if (!me.alive || !Array.isArray(m.inv)) return;
+      me.inv = [0, 1, 2, 3, 4].map((i) => sanitizeItem(m.inv[i]));
+      break;
+    }
     case 'jump': {
       if (me.alive && me.mode === 'bus') me.mode = 'sky';
       break;
@@ -741,9 +866,6 @@ function handle(me, m) {
 }
 
 // ---------------------------------------------------------------- pętla symulacji
-
-resetLoot();
-syncBots();
 
 export const TICK = 50;
 let lastTick = now();
@@ -754,8 +876,11 @@ export function step() {
 
   if (game.state === 'lobby' || game.state === 'countdown') {
     for (const h of humans()) if (!h.alive && h.respawnAt && t >= h.respawnAt) respawn(h, 'respawn');
+    let gone = false;
+    for (const h of humans()) if (!h.link && t - h.disc > LOBBY_GONE_MS) { removeHuman(h); gone = true; }
+    if (gone) broadcast(rosterMsg());
     if (game.state === 'countdown' && t >= game.countdownEnd) {
-      if (humans().length) startMatch(); else game.state = 'lobby';
+      if (online().length) startMatch(); else game.state = 'lobby';
     }
   } else if (game.state === 'match' || game.state === 'ended') {
     if (game.bus && game.busT < 1) {
@@ -764,7 +889,7 @@ export function step() {
         for (const e of ents.values()) {
           if (e.mode !== 'bus') continue;
           e.mode = 'sky';
-          if (!e.bot) send(e, { t: 'eject' });
+          if (!e.bot) { if (e.link) send(e, { t: 'eject' }); else parkOffline(e); }
         }
       }
     }
@@ -800,7 +925,7 @@ export function step() {
     st: s ? { x: r2(s.x), z: r2(s.z), r: r2(s.r), nx: r2(s.nx), nz: r2(s.nz), nr: r2(s.nr), shr: s.shr, tm: Math.ceil(s.tm), dmg: s.dmg } : null,
   }).slice(0, -1);
   for (const h of ents.values()) {
-    if (h.bot) continue;
+    if (h.bot || !h.link) continue;
     const near = h.alive && h.mode !== 'bus' && h.mode !== 'sky'; // z autobusu i po śmierci widać wszystko na bieżąco
     const parts = [];
     for (const r of rows) {
@@ -809,5 +934,14 @@ export function step() {
       parts.push(r.json);
     }
     send(h, `{"t":"s","me":[${Math.max(0, Math.round(h.hp))},${Math.round(h.sh)},${h.kills},${h.alive ? 1 : 0}],"c":${meta},"ps":[${parts.join(',')}]}}`);
+  }
+
+  // kopia stanu dla gości (przejęcie pokoju, gdy host wyjdzie)
+  if (game.tickNo % BACKUP_TICKS === 0) {
+    const guests = online().filter((h) => !h.owner);
+    if (guests.length) {
+      const b = `{"t":"backup","st":${JSON.stringify(exportState())}}`;
+      for (const h of guests) send(h, b);
+    }
   }
 }

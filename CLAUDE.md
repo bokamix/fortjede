@@ -1,6 +1,6 @@
 # Fortjede
 
-Przeglądarkowy battle royale w three.js (bez kroku budowania), multiplayer P2P bez serwera gry. Wszystko jest w `public/` jako moduły ES ładowane przez import map (three i PeerJS z CDN). Host liczy mecz w Web Workerze (`public/host-worker.js` → `public/sim.js`), a goście łączą się z nim przez WebRTC (`public/net.js`, PeerJS). Publikacja: GitHub Pages z `public/` (workflow `.github/workflows/pages.yml`), adres https://bokamix.github.io/fortjede/. Lokalnie: `npm start` (statyczny serwer na porcie 3000).
+Przeglądarkowy battle royale w three.js (bez kroku budowania), multiplayer P2P bez serwera gry. Wszystko jest w `public/` jako moduły ES ładowane przez import map (three i PeerJS z CDN). Host liczy mecz w Web Workerze (`public/host-worker.js` → `public/sim.js`), a goście łączą się z nim przez WebRTC (`public/net.js`, PeerJS). Gdy host wyjdzie, pokój przejmuje następca z kopii stanu (`exportState`/`init` w `sim.js`), a gracze wracają do swoich postaci dzięki tokenowi. Publikacja: GitHub Pages z `public/` (workflow `.github/workflows/pages.yml`), adres https://bokamix.github.io/fortjede/. Lokalnie: `npm start` (statyczny serwer na porcie 3000).
 
 ## Zasady pracy
 

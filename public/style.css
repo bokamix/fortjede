@@ -41,6 +41,9 @@ button:disabled { opacity: .45; cursor: default; filter: none; transform: none; 
 .joinCard.invited .codeRow .btn.go { font-size: 26px; padding: 14px; }
 .joinCard.invited .orSep { display: none; }
 .joinCard.invited #playBtn { order: 2; font-family: 'Rubik', sans-serif; font-size: 13px; font-weight: 700; padding: 10px; color: var(--ui-dim); background: var(--ui-card); border: 1px solid var(--ui-line); box-shadow: none; letter-spacing: .3px; }
+#netBanner { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 50; max-width: calc(100vw - 32px); padding: 10px 18px; border-radius: 12px; background: rgba(16, 20, 52, .94); border: 1px solid var(--ui-yellow); color: var(--ui-text); font-size: 14px; font-weight: 700; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.45); pointer-events: none; }
+#netBanner::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 10px; border-radius: 50%; border: 2px solid var(--ui-yellow); border-right-color: transparent; vertical-align: -1px; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .roomInfo { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 8px 10px; border-radius: 12px; background: var(--ui-card); border: 1px solid var(--ui-line); }
 .roomCodeBox { display: flex; flex-direction: column; line-height: 1.1; }
 .roomCodeBox b { font-size: 20px; letter-spacing: 3px; color: var(--ui-yellow); }

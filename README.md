@@ -10,12 +10,18 @@ Przeglądarkowy battle royale w stylu Fortnite (bez budowania), napisany w three
 2. W lobby widać kod pokoju i link zaproszenia (**Copy link**). Host wysyła go znajomym.
 3. Znajomi otwierają link i klikają **JOIN ROOM** (albo wpisują kod ręcznie na stronie głównej).
 
-Host musi mieć otwartą kartę z grą, bo jej zamknięcie kończy pokój dla wszystkich. Przełączenie się na inną kartę nie zatrzymuje gry, bo symulacja działa w Web Workerze.
+Przełączenie się na inną kartę nie zatrzymuje gry, bo u hosta symulacja działa w Web Workerze.
+
+### Wyjście hosta i powrót do gry
+
+- **Host może wyjść.** Co 2 s wysyła wszystkim kopię stanu meczu. Gdy wyjdzie (albo straci internet), pokój automatycznie przejmuje kolejny gracz, a reszta łączy się z nim sama. Gra przytnie się na kilka sekund, a na górze ekranu widać komunikat. Link zaproszenia dalej działa.
+- **Rozłączony gracz zostaje na mapie.** Jego postać stoi w miejscu (z napisem „offline”) i można ją zabić. Wtedy jej ekwipunek wypada na ziemię.
+- **Powrót do swojej postaci.** Po odświeżeniu strony, zerwaniu łącza albo ponownym wejściu z linku wracasz do swojej postaci z jej zdrowiem, tarczą, ekwipunkiem i drużyną (przeglądarka pamięta token gracza dla pokoju). W lobby rozłączony gracz znika po minucie, a w meczu stoi do jego końca.
 
 ### Jak to działa
 
 - Strona jest statyczna (GitHub Pages, publikowana automatycznie z `public/` przy każdym pushu do `main`).
-- Host uruchamia symulację meczu (`public/sim.js`) w Web Workerze (`public/host-worker.js`).
+- Host uruchamia symulację meczu (`public/sim.js`) w Web Workerze (`public/host-worker.js`). Przy przejęciu pokoju następca startuje ją z ostatniej kopii stanu pod kolejnym identyfikatorem (`KOD-1`, `KOD-2`…).
 - Goście łączą się z przeglądarką hosta przez **WebRTC** (biblioteka PeerJS, `public/net.js`). Darmowy serwer PeerJS służy tylko do zestawienia połączenia, a cały ruch gry idzie bezpośrednio peer-to-peer. Gdy bezpośrednie połączenie nie wyjdzie (restrykcyjny NAT, np. niektóre sieci komórkowe), PeerJS przechodzi na swoje serwery TURN.
 - Wysyłanie danych obciąża łącze hosta: przy kilku graczach i wielu botach to rząd 0,5–1,5 MB/s.
 
@@ -37,7 +43,7 @@ Inny port: `PORT=8080 npm start`. Można otworzyć dwie karty: w jednej utworzy�
 
 ## Host i ustawienia meczu
 
-- **Host** to osoba, która utworzyła pokój. Może przekazać rolę hosta (ustawianie drużyn i meczu) komuś innemu przyciskiem 👑 przy nicku, ale symulacja dalej działa w przeglądarce twórcy pokoju.
+- **Host** to osoba, która utworzyła pokój (albo przejęła go po poprzednim hoście). Może przekazać rolę hosta (ustawianie drużyn i meczu) komuś innemu przyciskiem 👑 przy nicku, ale symulacja dalej działa w przeglądarce tego, kto prowadzi pokój.
 - Tylko host ustawia drużyny, zmienia ustawienia i startuje mecz. Pozostali widzą wszystko, ale nie mogą tego zmienić.
 - Ustawienia w lobby (Esc):
 
@@ -100,7 +106,7 @@ W menu (Esc) jest przełącznik **Grafika: Niska / Średnia / Wysoka**, a wybór
 - `server.js`: lokalny serwer plików statycznych do testów
 - `public/sim.js`: autorytatywna symulacja meczu (burza, loot, boty, drużyny), działa u hosta
 - `public/host-worker.js`: Web Worker hosta, który uruchamia `sim.js`
-- `public/net.js`: sieć P2P (WebRTC/PeerJS): tworzenie pokoju i dołączanie
+- `public/net.js`: sieć P2P (WebRTC/PeerJS): tworzenie pokoju, dołączanie, ponowne łączenie i przejmowanie pokoju
 - `public/shared.js`: kod wspólny dla symulacji i klienta (mapa, kolizje, raycast, bronie)
 - `public/game.js`: klient (sterowanie, HUD, kamera)
 - `public/visuals.js`: oprawa graficzna (niebo, woda, teren, faktury, roślinność, postprocessing)

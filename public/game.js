@@ -4,7 +4,7 @@ import * as S from './shared.js';
 import * as FX from './gunfx.js';
 import * as VIS from './visuals.js';
 import { createAvatar, animateAvatar, muzzleOf, makeNameSprite } from './avatar.js';
-import { hostRoom, joinRoom, cleanCode, inviteLink } from './net.js';
+import { startSession, cleanCode, inviteLink } from './net.js';
 
 const { WEAPONS, CONSUMABLES, RARITIES, PICKAXE, MODE_CODE, MODES } = S;
 const $ = (id) => document.getElementById(id);
@@ -383,10 +383,11 @@ function refreshTag(o) {
   const info = G.roster.get(o.id);
   if (!info) return;
   const tc = G.myTeam > 0 && info.team === G.myTeam ? tColor(info.team) : null;
-  const key = info.name + '|' + tc + '|' + G.myTeam;
+  const label = info.off ? `${info.name} (offline)` : info.name;
+  const key = label + '|' + tc + '|' + G.myTeam;
   if (o.av.tagKey === key) return;
   o.av.root.remove(o.av.tag);
-  o.av.tag = makeNameSprite(info.name, info.bot, tc);
+  o.av.tag = makeNameSprite(label, info.bot, tc);
   o.av.tagKey = key; o.av.name = info.name;
   o.av.root.add(o.av.tag);
 }
@@ -417,48 +418,54 @@ function placeMe(p) {
 }
 
 // ================================================================ sieć
-// host: symulacja w Web Workerze u siebie; gość: połączenie WebRTC z przeglądarką hosta (net.js)
-let link = null; // { send(string) }
-const net = { send(o) { if (link) link.send(JSON.stringify(o)); } };
+// host: symulacja w Web Workerze u siebie; gość: połączenie WebRTC z przeglądarką hosta (net.js).
+// Sesja sama wraca po zerwaniu łącza i przenosi pokój do innego gracza, gdy host wyjdzie.
+let session = null;
+const net = { send(o) { if (session) session.send(JSON.stringify(o)); } };
 const recv = (data) => { try { onMsg(JSON.parse(data)); } catch (err) { console.error(err); } };
-let peersOnline = 0;
+let lastInvKey = '';
+
+function setBanner(text) {
+  $('netBanner').textContent = text || '';
+  $('netBanner').classList.toggle('hidden', !text);
+}
 
 function connFailed(text) {
-  $('connStatus').textContent = text;
-  $('playBtn').disabled = false; $('joinBtn').disabled = false;
+  setBanner(null);
+  session = null;
+  if (!gm) { // jeszcze w menu
+    $('connStatus').textContent = text;
+    $('playBtn').disabled = false; $('joinBtn').disabled = false;
+    return;
+  }
+  if (document.pointerLockElement) document.exitPointerLock();
+  $('menu').classList.remove('hidden');
+  $('joinBox').classList.remove('hidden');
+  $('lobbyBox').classList.add('hidden');
+  $('joinCard').classList.add('hidden');
+  $('connStatus').textContent = `${text} Refresh the page (F5) to play again.`;
 }
 
 function connect(name, code) {
-  if (code) {
-    $('connStatus').textContent = `Joining room ${code}…`;
-    const l = joinRoom(code, {
-      onOpen() { link = l; G.room = code; l.send(JSON.stringify({ t: 'join', name })); },
-      onMsg: recv,
-      onError: connFailed,
-      onClose() {
-        link = null;
-        if (document.pointerLockElement) document.exitPointerLock();
-        $('menu').classList.remove('hidden');
-        $('joinBox').classList.remove('hidden');
-        $('lobbyBox').classList.add('hidden');
-        $('joinCard').classList.add('hidden');
-        $('connStatus').textContent = 'The host has left — the room is closed. Refresh the page (F5) to play again.';
-      },
-    });
-  } else {
-    $('connStatus').textContent = 'Creating a room…';
-    hostRoom({
-      onReady({ code, send }) {
-        link = { send }; G.room = code; G.roomOwner = true;
-        send(JSON.stringify({ t: 'join', name }));
-        // zamknięcie karty hosta kończy grę wszystkim — zapytaj, jeśli ktoś jest w pokoju
-        addEventListener('beforeunload', (e) => { if (peersOnline > 0) { e.preventDefault(); e.returnValue = ''; } });
-      },
-      onMsg: recv,
-      onError: connFailed,
-      onPeers(n) { peersOnline = n; },
-    });
-  }
+  session = startSession({
+    code, name,
+    onMsg: recv,
+    onReady({ code: c }) {
+      G.room = c;
+      // adres z kodem pokoju: po odświeżeniu strony wracasz do gry
+      try { history.replaceState(null, '', `${location.pathname}?room=${c}`); sessionStorage.setItem('fortjede-in', c); } catch { /* bez historii */ }
+    },
+    onStatus(text) {
+      if (!gm) { $('connStatus').textContent = text || ''; return; }
+      setBanner(text);
+    },
+    onRole(owner) {
+      G.roomOwner = owner;
+      if (owner && gm) { G.killMsg = 'You are now hosting the room'; G.killMsgT = 3; }
+      renderPlayersList();
+    },
+    onFail: connFailed,
+  });
 }
 
 function renderRoomInfo() {
@@ -478,10 +485,18 @@ $('roomLink').onfocus = (e) => e.target.select();
 function onMsg(m) {
   switch (m.t) {
     case 'welcome': {
+      // ponowne powitanie (powrót po zerwaniu łącza albo nowy host): świat już stoi, odświeżamy tylko stan
+      const again = !!gm;
+      if (again && gm.seed !== m.map.seed) { location.reload(); return; }
       G.myId = m.id;
-      gm = new S.GameMap(m.map.seed, m.map);
-      buildWorld();
-      buildMapImage();
+      if (!again) {
+        gm = new S.GameMap(m.map.seed, m.map);
+        buildWorld();
+        buildMapImage();
+        meAv = createAvatar(m.id, '', false);
+        meAv.tag.visible = false;
+        scene.add(meAv.root);
+      } else resetObjs();
       for (const o of [...gm.boxes, ...gm.cyls]) o.dead = false;
       for (const k of m.destroyed || []) setObjVisible(k, false);
       G.state = m.gs; G.bus = m.bus;
@@ -489,10 +504,24 @@ function onMsg(m) {
       renderSettings();
       setLoot(m.loot, m.opened);
       if (m.cards) setCards(m.cards);
-      meAv = createAvatar(m.id, '', false);
-      meAv.tag.visible = false;
-      scene.add(meAv.root);
-      if (m.spawn) { placeMe(m.spawn); G.dead = false; G.spectating = false; }
+      lastInvKey = ''; // wyślij hostowi aktualny ekwipunek
+      const r = m.me;
+      if (r && again && r.alive === !G.dead) {
+        // ta sama strona po krótkiej przerwie: lokalny stan (pozycja, ekwipunek) jest świeższy niż u hosta
+      } else if (r) {
+        G.inv = r.inv.map((it) => it && { ...it }); G.sel = 0; hotbarDirty = true;
+        resetWeaponState();
+        if (r.alive) {
+          placeMe(r.p);
+          me.ry = r.ry;
+          me.mode = r.mode === 'dead' ? 'ground' : r.mode;
+          G.dead = false; G.spectating = false; G.deadInfo = null;
+        } else {
+          G.dead = true; me.mode = 'dead';
+          G.deadInfo = { place: r.place, canReboot: r.canReboot, lobby: !r.inMatch };
+          G.spectating = r.inMatch; G.specId = null;
+        }
+      } else if (m.spawn) { placeMe(m.spawn); G.dead = false; G.spectating = false; }
       else { G.dead = true; G.spectating = true; me.mode = 'dead'; }
       $('joinBox').classList.add('hidden');
       $('lobbyBox').classList.remove('hidden');
@@ -651,6 +680,11 @@ function onMsg(m) {
       placeMe(m.p);
       G.dead = false; G.spectating = false; G.deadInfo = null; G.specId = null;
       if (m.t === 'lobby') { G.endInfo = null; G.bus = null; G.inv = [null, null, null, null, null]; G.sel = 0; hotbarDirty = true; }
+      break;
+    }
+    case 'replaced': { // ta sama postać weszła z innej karty
+      if (session) session.stop();
+      connFailed('You joined this room from another tab.');
       break;
     }
     case 'end': {
@@ -1372,7 +1406,7 @@ function renderPlayersList() {
   const humansN = all.filter((p) => !p.bot).length, botsN = all.length - humansN;
   $('lobbyStatus').innerHTML = `<span class="pill">🙂 <b>${humansN}</b> player${humansN === 1 ? '' : 's'}</span><span class="pill">🤖 <b>${botsN}</b> bots</span><span class="pill">👑 ${esc(nameOf(G.hostId))}</span>`;
   $('hostInfo').innerHTML = host ? 'You are the <b>host</b>. You set up the teams and the match.' : `<b>${esc(nameOf(G.hostId))}</b> is the host and sets up the teams and the match.`;
-  if (G.roomOwner) $('hostInfo').innerHTML += ' The match runs in <b>your browser</b> — keep this tab open, closing it ends the game for everyone.';
+  if (G.roomOwner) $('hostInfo').innerHTML += ' The match runs in <b>your browser</b>. If you leave, another player takes over the room automatically.';
   $('teamHint').textContent = edit ? 'Drag a player onto a team, or click a player and then a team. Click a team name to rename it.' : 'Only the host can arrange teams.';
   $('teamTools').innerHTML = !edit ? '' : `
     <button class="btn ghost" data-act="solo">Everyone solo</button>
@@ -1749,6 +1783,9 @@ function update(dt) {
     sendAcc = 0;
     if (!G.dead) {
       net.send({ t: 'st', p: [r2(me.x), r2(me.y), r2(me.z)], r: [r3(me.ry), r3(me.rx)], m: MODE_CODE[me.mode] ?? 0, w: heldStr(), mv: Math.hypot(me.vx, me.vz) > 0.5 ? 1 : 0, c: me.crouch ? 1 : 0 });
+      // kopia ekwipunku u hosta: żeby po rozłączeniu albo zmianie hosta wrócić z tym, co się miało
+      const ik = JSON.stringify(G.inv);
+      if (ik !== lastInvKey) { lastInvKey = ik; net.send({ t: 'inv', inv: G.inv }); }
     }
   }
 
@@ -1876,6 +1913,8 @@ $('joinBtn').onclick = () => join(true);
 $('nick').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(!!invited); });
 $('roomCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(true); });
 $('roomCode').addEventListener('input', (e) => { e.target.value = cleanCode(e.target.value); });
+let rejoin = false;
+try { rejoin = !!invited && sessionStorage.getItem('fortjede-in') === invited; } catch { /* brak storage */ }
 if (invited) {
   // wejście z linku zaproszenia: główną akcją jest dołączenie
   $('roomCode').value = invited;
@@ -1905,5 +1944,6 @@ $('vol').addEventListener('input', (e) => { const v = +e.target.value; FX.setVol
 applyQuality();
 const qsNick = qs.get('nick');
 if (qsNick) { $('nick').value = qsNick.slice(0, 16); join(!!invited); }
+else if (rejoin && $('nick').value.trim()) join(true); // odświeżona karta w trakcie gry — wracamy od razu
 
-window.__fj = { G, me, camera, keys, jumpFromBus, addItem, interact, selectSlot, onCrouchKey, setLocked: (v) => { locked = v; }, get gm() { return gm; } }; // debug
+window.__fj = { G, me, net, camera, keys, jumpFromBus, addItem, interact, selectSlot, onCrouchKey, setLocked: (v) => { locked = v; }, get gm() { return gm; } }; // debug
