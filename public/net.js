@@ -19,6 +19,34 @@ const SUCC_STEP = 4000; // kolejny następca czeka o tyle dłużej, zanim sam pr
 const GIVE_UP_MS = 60000;
 const PROBE = 12; // tyle epok sprawdzamy naraz, szukając aktualnego hosta
 
+// Serwery ICE. Domyślne serwery TURN z PeerJS (*.turn.peerjs.com) już nie istnieją, a bez TURN
+// połączenie nie przejdzie, gdy któraś strona siedzi za trudnym NAT-em (sieć komórkowa, część routerów i sieci firmowych).
+// TURN_URL: adres zwracający listę serwerów ICE w JSON (np. https://NAZWA.metered.live/api/v1/turn/credentials?apiKey=KLUCZ).
+// Pusty = tylko STUN (działa w tej samej sieci i przy łagodnym NAT).
+const TURN_URL = '';
+const STUN = [
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+];
+let iceP = null;
+function iceServers() {
+  if (!iceP) iceP = (async () => {
+    if (!TURN_URL) return STUN;
+    try {
+      const ctl = new AbortController();
+      const tm = setTimeout(() => ctl.abort(), 5000);
+      const r = await fetch(TURN_URL, { signal: ctl.signal });
+      clearTimeout(tm);
+      const list = await r.json();
+      if (Array.isArray(list) && list.length) return [...STUN, ...list];
+    } catch (e) { console.warn('TURN', e); }
+    iceP = null; // następnym razem spróbujemy jeszcze raz
+    return STUN;
+  })();
+  return iceP;
+}
+const peerOpts = async () => ({ debug: 1, config: { iceServers: await iceServers() } });
+
 export const roomCode = () => Array.from({ length: 5 }, () => CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]).join('');
 export const cleanCode = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
 export const inviteLink = (code) => `${location.origin}${location.pathname}?room=${code}`;
@@ -86,9 +114,10 @@ export function startSession({ code, name, ...cb }) {
 
   // Rejestruje epokę ep i uruchamia symulację (z kopii stanu albo od zera).
   // true = jesteśmy hostem, false = ktoś był szybszy, inny błąd PeerJS = obiekt błędu.
-  function becomeHost(ep, state) {
+  async function becomeHost(ep, state) {
+    const opts = await peerOpts();
     return new Promise((resolve) => {
-      const peer = new Peer(peerId(code, ep), { debug: 1 });
+      const peer = new Peer(peerId(code, ep), opts);
       let ready = false;
       peer.on('open', () => {
         if (ready) return; // ponowne połączenie z sygnalizacją po zerwaniu
@@ -147,11 +176,12 @@ export function startSession({ code, name, ...cb }) {
 
   // ------------------------------------------------------------ gość
 
-  function guestPeer() {
-    if (gpeer && !gpeer.destroyed && gpeer.open) return Promise.resolve(gpeer);
+  async function guestPeer() {
+    if (gpeer && !gpeer.destroyed && gpeer.open) return gpeer;
     if (gpeer) gpeer.destroy();
+    const opts = await peerOpts();
     return new Promise((res, rej) => {
-      const p = new Peer({ debug: 1 });
+      const p = new Peer(opts);
       gpeer = p;
       p.on('open', () => res(p));
       p.on('error', (err) => {
@@ -283,7 +313,7 @@ export function startSession({ code, name, ...cb }) {
     if (r.conn) { attach(r.conn, r.ep); cb.onReady({ code }); return; }
     stopped = true;
     if (gpeer) gpeer.destroy();
-    cb.onFail(r.error ? peerError(r.error) : r.allGone ? 'Room not found — check the code or ask the host for a new link.' : 'The host is not responding — check the code or try again.');
+    cb.onFail(r.error ? peerError(r.error) : r.allGone ? 'Room not found — check the code or ask the host for a new link.' : 'Could not connect to the host — your networks may block direct connections. Try again, or try another network (e.g. Wi-Fi instead of mobile data).');
   })();
 
   // pilnowanie łącza: host sprząta milczących gości, gość wykrywa milczącego hosta
